@@ -7,6 +7,19 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+//**************************************************************************
+//remove goto statements
+//put limits upper limits on all for loops
+//no more than about 60 lines of code per function
+//^^^https://web.eecs.umich.edu/~imarkov/10rules.pdf
+//**************************************************************************
+
+
+//*********************CHANGE LOG********************************************
+//GOTO was removed
+//compare fucntion was changed and isInt method was added
+
+
 int shm_fd;
 volatile void *shm;
 
@@ -48,9 +61,23 @@ struct tempnode *deletenodes(struct tempnode *templist, int after)
 	}
 	return templist;
 }
+
 int compare(const void *first, const void *second)
 {
-	return *((const int *)first) - *((const int *)second);
+	if (isInt(first) == 1 & isInt*(second) == 1)
+	{
+		return *((const int *)first) - *((const int *)second);
+	}
+}
+
+int isInt(void *in)
+{
+	int ret = 0;
+	if (isdigit(in) != 0)
+	{
+		ret = 1;
+	}
+	return ret;
 }
 
 void tempmonitor(int level)
@@ -121,9 +148,7 @@ void tempmonitor(int level)
 					alarm_active = 1;
 			}
 		}
-		
-		usleep(2000);
-		
+		usleep(2000);		
 	}
 }
 
@@ -144,8 +169,7 @@ void *openboomgate(void *arg)
 	
 }
 
-int main()
-{
+int main() {
 	shm_fd = shm_open("PARKING", O_RDWR, 0);
 	shm = (volatile void *) mmap(0, 2920, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 	
@@ -156,13 +180,11 @@ int main()
 	}
 	for (;;) {
 		if (alarm_active) {
-			goto emergency_mode;
+				fprintf(stderr, "*** ALARM ACTIVE ***\n");
+				break;
 		}
 		usleep(1000);
 	}
-	
-	emergency_mode:
-	fprintf(stderr, "*** ALARM ACTIVE ***\n");
 	
 	// Handle the alarm system and open boom gates
 	// Activate alarms on all levels
