@@ -13,7 +13,7 @@
 /**
  *  Tasks of the Manager
  * 
- * 1. Monitor the status of the LPR sensor 
+ * 1. Monitor the status of the LPR (license plate recognition) sensor 
  * 1.1 Keep track where each car is
  * 
  * 2. Tell the boom gates to open and close +(automatic close after fixed time)
