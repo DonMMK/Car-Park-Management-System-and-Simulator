@@ -63,24 +63,11 @@ typedef struct level {
  * Our shared data block.
  */
 typedef struct shared_data {
-    entrance_t entrance1;
-    entrance_t entrance2;
-    entrance_t entrance3;
-    entrance_t entrance4;
-    entrance_t entrance5;
+    entrance_t entrance[ENTRANCES];
 
-    exit_t exit1;
-    exit_t exit2;
-    exit_t exit3;
-    exit_t exit4;
-    exit_t exit5;
+    exit_t exit[ENTRANCES];
 
-    level_t level1;
-    level_t level2;
-    level_t level3;
-    level_t level4;
-    level_t level5;
-
+    level_t level[LEVELS];
 } shared_data_t;
 
 /**
