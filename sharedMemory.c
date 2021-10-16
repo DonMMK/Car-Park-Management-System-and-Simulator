@@ -65,7 +65,7 @@ typedef struct level {
 typedef struct shared_data {
     entrance_t entrance[ENTRANCES];
 
-    exit_t exit[ENTRANCES];
+    exit_t exit[EXITS];
 
     level_t level[LEVELS];
 } shared_data_t;

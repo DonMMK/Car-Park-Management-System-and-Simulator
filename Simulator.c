@@ -10,14 +10,15 @@
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
-
 #include "sharedMemory.c"
 
+#define SHMSZ 2920
 
 
 // ------------------------------------ STRUCTURE DECLERATIONS ------------------------------------ // 
 typedef struct car {
     int entrance; 
+    int exit;
     char* plate; 
 } car_t;
 
@@ -40,36 +41,92 @@ char allowedPlates[100][10];
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
 {
-    // Initialise random
+    // Create variables 
+    int waitTime;
+    int shm_fd;
+    const char *key = "PARKING";
+    car_t car;
+    shared_memory_t shm;
+
+    // Initialise random seed
     time_t t;
     srand((unsigned) time(&t));
 
-    // Setup car object and shared memory
-    car_t car;
-    int shm_fd = shm_open("PARKING", O_RDWR, 0);
-	volatile void *shm = (volatile void *) mmap(0, 2920, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    // Create the segment.
+    if ((shm.fd = shm_open(key, O_CREAT | O_RDWR, 0666)) < 0) {
+        perror("shm_open");
+        exit(1);
+    }
     
+    // Configure the size of the shared memory segment
+    ftruncate(shm_fd, SHMSZ);
+
+    // Attach the segment to our data space
+    if ((shm.data  = mmap(0, SHMSZ, PROT_WRITE, MAP_SHARED, shm_fd, 0)) == (char *)-1)
+    {
+        perror("mmap");
+        exit(1);
+    }
+
     // Read the number plates 
     readFile("plates.txt");
     // printFile();
 
-    // car.plate = generatePlate(80);
-    // printf("%s\n", car.plate);
+    // BEGINING SIMULATION
+    printf("\nStarting simulation...\n");
 
     for (int i = 1;i < 2;i++){
         // Generate car every 1 - 100 milliseconds
-        int time = generateRandom(1,100) * 1000;
-        usleep(time);
+        waitTime = generateRandom(1,100) * 1000;
+        usleep(waitTime);
 
-        // Spawn car at random entrance 
+        // Spawn car at random entrance
         car.entrance = generateRandom(1,ENTRANCES);
         printf("Car arriving at entrance: %d\n", car.entrance);
 
         // Generate numberplate (from list/random)
         car.plate = generatePlate(80);
-        printf("Car has plate number: %s\n", car.plate);
-        
-        
+        printf("Car has plate number: %s\n", car.plate);    
+
+        // wait 2ms to trigger LPR
+        usleep(2000);
+
+        // TRIGGER LRP AT ENTRANCE
+        // thread_cond_signal(shm.data.entrance[1].LPRSensor.LRPcond);
+
+        // Read digital sign
+        int carLevel = generateRandom(1,LEVELS);
+        printf("Car will be heading to level: %d\n", carLevel);    
+
+        // Wait for boom gate to open (10ms)
+        usleep(10000);
+
+        // SIGNAL BOOMGATE AS RAISING/OPEN/CLOSING/CLOSED
+
+        // drive to park (10ms)
+        usleep(10000);
+
+        //SET OFF LPR ON FLOOR?
+
+        // park for random time (100-10000ms)
+        usleep(10000);
+        waitTime = generateRandom(100,10000) * 1000;
+        printf("Parked for %d seconds...\n", waitTime/1000000);
+        usleep(time);
+    
+        //SET OFF LPR ON FLOOR?
+
+        // drive to exit (10ms)
+        usleep(10000);
+        car.exit = generateRandom(1,ENTRANCES);
+        printf("Car going to exit: %d\n\n", car.exit);
+
+        // TRIGGER LRP AT EXIT
+
+        // Wait for boom gate to open (10ms)
+        usleep(10000);
+
+        // SIGNAL BOOMGATE AS RAISING/OPEN/CLOSING/CLOSED   
     }
 }
 
@@ -80,12 +137,11 @@ int main()
 // https://www.geeksforgeeks.org/generating-random-number-range-c/?fbclid=IwAR1a4I7mqxidG7EHit34MRmTLgge9xMfBQtw8TcCXVlYC9_QqrATtfESm94
 int generateRandom(int lower, int upper)
 {    
-    int i;
     int num = (rand() % (upper - lower + 1)) + lower;
     return num;
 }
 
-// Reads contents of supplied file
+// Reads contents of supplied file 
 void readFile(char *filename){
     FILE* file = fopen(filename, "r");
 
@@ -97,7 +153,7 @@ void readFile(char *filename){
     }
 }
 
-// Prints contents of previous file
+// Prints contents of numberplate file (USED FOR TESTING)
 void printFile(){
 	printf("\n The content of the file  are : \n");    
     for(int i = 0; i < 100; i++)
