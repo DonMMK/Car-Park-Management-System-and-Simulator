@@ -64,7 +64,7 @@ struct tempnode *deletenodes(struct tempnode *templist, int after)
 
 int compare(const void *first, const void *second)
 {
-	if (isInt(first) == 1 & isInt*(second) == 1)
+	if (isInt(first) == 1 & isInt(second) == 1)
 	{
 		return *((const int *)first) - *((const int *)second);
 	}
