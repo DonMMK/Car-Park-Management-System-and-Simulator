@@ -39,6 +39,8 @@
 // ------------------------------------ STRUCTURE DECLERATIONS ------------------------------------ // 
 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
+void StatusLPR();
+
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 int LevelCapacity;
@@ -60,16 +62,30 @@ int main()
     //int PALevel[100];
     //int PASize = 0;
 
+    // Calling the Status fuction 
+    StatusLPR();
+
 }
 
 // --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
 
+/**
+ * This function acts as the GUI for the manager file system
+ * the function displays the status of the capacity, Boomgate, signs, Temperature sensor
+ * Alarm, Car park revenue. */
 void StatusLPR(){
-
-
-
+    printf("\n----------------------------------------------------------------");
+    printf("\nCapacity:");
+    printf("\nBoomgate:");
+    printf("\nSigns");
+    printf("\nTemperature");
+    printf("\n----------------------------------------------------------------");
+    printf("\n");
+    return; //
 }
 
 // Friday 15th Oct: Tasks for Don 
 // 1. Build up a quick gui 
 // 2. Find a good data structure to use for car location track
+// -> use a queue for list of cars wating to get in 
+// Use dynamic list or stucture for car locations
