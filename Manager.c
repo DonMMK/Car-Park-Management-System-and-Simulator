@@ -11,7 +11,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "sharedMemory.c"
+#include "shm_ops.c"
+
+#define SHARE_NAME "PARKING"
 
 // ------------------------------------ FILE OVERVIEW --------------------------------------------- // 
 /**
@@ -55,8 +57,9 @@ int CarparkRevenue;
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
 {    
-    int shm_fd = shm_open("PARKING", O_RDWR, 0);
-    volatile void *shm = (volatile void *) mmap(0, 2920, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    shared_memory_t shm;
+
+    create_shared_object_R(&shm, SHARE_NAME);
 
     //car_t PACars[100];
     //int PALevel[100];

@@ -10,9 +10,12 @@
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
-#include "sharedMemory.c"
+#include <ctype.h>
 
-#define SHMSZ 2920
+#include "shm_ops.c"
+
+#define SHARE_NAME "PARKING"
+#define CAR_LIMIT 1
 
 
 // ------------------------------------ STRUCTURE DECLERATIONS ------------------------------------ // 
@@ -30,12 +33,12 @@ void readFile(char *filename);
 void printFile();
 char* generatePlate(int probability);
 char* randomPlate();
-
+void *carSimulate(void *arg);
 
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 char allowedPlates[100][10];
-
+shared_memory_t shm;
 
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
@@ -43,96 +46,102 @@ int main()
 {
     // Create variables 
     int waitTime;
-    int shm_fd;
-    const char *key = "PARKING";
-    car_t car;
-    shared_memory_t shm;
+    pthread_t carThreads[CAR_LIMIT];
 
     // Initialise random seed
     time_t t;
     srand((unsigned) time(&t));
 
-    // Create the segment.
-    if ((shm.fd = shm_open(key, O_CREAT | O_RDWR, 0666)) < 0) {
-        perror("shm_open");
-        exit(1);
-    }
-    
-    // Configure the size of the shared memory segment
-    ftruncate(shm_fd, SHMSZ);
-
-    // Attach the segment to our data space
-    if ((shm.data  = mmap(0, SHMSZ, PROT_WRITE, MAP_SHARED, shm_fd, 0)) == (char *)-1)
-    {
-        perror("mmap");
-        exit(1);
-    }
+    create_shared_object_RW(&shm, SHARE_NAME);
 
     // Read the number plates 
     readFile("plates.txt");
     // printFile();
 
     // BEGINING SIMULATION
-    printf("\nStarting simulation...\n");
+    printf("...STARTING SIMULATION...\n");
 
-    for (int i = 1;i < 2;i++){
+    for (int i = 0;i < CAR_LIMIT;i++){
+        pthread_create(&carThreads[i], NULL, carSimulate, NULL);
+    }
+
+    for (int i = 0;i < CAR_LIMIT;i++){
         // Generate car every 1 - 100 milliseconds
         waitTime = generateRandom(1,100) * 1000;
         usleep(waitTime);
 
-        // Spawn car at random entrance
-        car.entrance = generateRandom(1,ENTRANCES);
-        printf("Car arriving at entrance: %d\n", car.entrance);
-
-        // Generate numberplate (from list/random)
-        car.plate = generatePlate(80);
-        printf("Car has plate number: %s\n", car.plate);    
-
-        // wait 2ms to trigger LPR
-        usleep(2000);
-
-        // TRIGGER LRP AT ENTRANCE
-        // thread_cond_signal(shm.data.entrance[1].LPRSensor.LRPcond);
-
-        // Read digital sign
-        int carLevel = generateRandom(1,LEVELS);
-        printf("Car will be heading to level: %d\n", carLevel);    
-
-        // Wait for boom gate to open (10ms)
-        usleep(10000);
-
-        // SIGNAL BOOMGATE AS RAISING/OPEN/CLOSING/CLOSED
-
-        // drive to park (10ms)
-        usleep(10000);
-
-        //SET OFF LPR ON FLOOR?
-
-        // park for random time (100-10000ms)
-        usleep(10000);
-        waitTime = generateRandom(100,10000) * 1000;
-        printf("Parked for %d seconds...\n", waitTime/1000000);
-        usleep(time);
-    
-        //SET OFF LPR ON FLOOR?
-
-        // drive to exit (10ms)
-        usleep(10000);
-        car.exit = generateRandom(1,ENTRANCES);
-        printf("Car going to exit: %d\n\n", car.exit);
-
-        // TRIGGER LRP AT EXIT
-
-        // Wait for boom gate to open (10ms)
-        usleep(10000);
-
-        // SIGNAL BOOMGATE AS RAISING/OPEN/CLOSING/CLOSED   
+        // SPAWN CAR THREAD 
+        pthread_join(carThreads[i],NULL);
     }
 }
 
 
 
 // --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
+
+void *carSimulate(void *arg){
+    car_t car;
+    int waitTime;
+
+    // Spawn car at random entrance
+    car.entrance = generateRandom(1,ENTRANCES);
+    printf("Car arriving at entrance: %d\n", car.entrance);
+
+    // Generate numberplate (from list/random)
+    car.plate = generatePlate(80);
+    printf("Car has plate number: %s\n", car.plate);    
+
+    // wait 2ms to trigger LPR
+    usleep(2000);
+
+    // Read digital sign
+    int carLevel = generateRandom(1,LEVELS);
+
+    // Check if car level is a digit between 1 - LEVELS
+    if (carLevel > LEVELS || carLevel <= 0 || isdigit(carLevel) != 0) {
+        return 0;
+    }
+    printf("Car will be heading to level: %d\n", carLevel);  
+
+    // TRIGGER LRP AT ENTRANCE
+    pthread_cond_signal(&shm.data->entrance[car.entrance].LPRSensor.LRPcond);   
+
+    // Wait for boom gate to open (10ms)
+    pthread_cond_wait(&shm.data->exit[car.exit].gate.gatecond, &shm.data->exit[car.exit].gate.gatemutex);
+
+    // drive to park (10ms)
+    usleep(10000);
+
+    //SET OFF LPR ON FLOOR
+    pthread_cond_signal(&shm.data->level[carLevel].LPRSensor.LRPcond);
+
+    // park for random time (100-10000ms)
+    usleep(10000);
+    waitTime = generateRandom(100,10000) * 1000;
+    printf("Parked for %d seconds...\n", waitTime/1000000);
+    usleep(waitTime);
+
+    //SET OFF LPR ON FLOOR
+    pthread_cond_signal(&shm.data->level[carLevel].LPRSensor.LRPcond);
+
+    // drive to exit (10ms)
+    usleep(10000);
+    car.exit = generateRandom(1,ENTRANCES);
+    printf("Car going to exit: %d\n", car.exit);
+
+    // TRIGGER LRP AT EXIT
+    pthread_cond_signal(&shm.data->exit[car.exit].LPRSensor.LRPcond);
+
+    // Wait for boom gate to open (10ms)
+    pthread_cond_wait(&shm.data->exit[car.exit].gate.gatecond, &shm.data->exit[car.exit].gate.gatemutex);
+
+    // DELETE CAR THREAD 
+    return 0;
+}
+
+
+
+
 // Generates random numbers in range [lower, upper]. 
 // https://www.geeksforgeeks.org/generating-random-number-range-c/?fbclid=IwAR1a4I7mqxidG7EHit34MRmTLgge9xMfBQtw8TcCXVlYC9_QqrATtfESm94
 int generateRandom(int lower, int upper)
