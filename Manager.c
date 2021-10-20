@@ -58,15 +58,12 @@ int CarparkRevenue;
 int main()
 {    
     shared_memory_t shm;
-
     create_shared_object_R(&shm, SHARE_NAME);
 
-    //car_t PACars[100];
-    //int PALevel[100];
-    //int PASize = 0;
+    //printf("Data stored entrace gate: %c \n", shm.data->entrance[0].gate.status);
 
-    // Calling the Status fuction 
-    StatusLPR();
+    
+
 
 }
 
@@ -87,8 +84,3 @@ void StatusLPR(){
     return; //
 }
 
-// Friday 15th Oct: Tasks for Don 
-// 1. Build up a quick gui 
-// 2. Find a good data structure to use for car location track
-// -> use a queue for list of cars wating to get in 
-// Use dynamic list or stucture for car locations

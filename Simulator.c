@@ -59,7 +59,9 @@ int main()
     // printFile();
 
     // BEGINING SIMULATION
-    printf("...STARTING SIMULATION...\n");
+    printf("...STARTING SIMULATION...\n");    
+    
+    // shm.data->entrance[0].gate.status = 'c';
 
     for (int i = 0;i < CAR_LIMIT;i++){
         pthread_create(&carThreads[i], NULL, carSimulate, NULL);
@@ -104,6 +106,7 @@ void *carSimulate(void *arg){
     printf("Car will be heading to level: %d\n", carLevel);  
 
     // TRIGGER LRP AT ENTRANCE
+    shm.data->entrance[car.entrance].LPRSensor.plate = car.plate;
     pthread_cond_signal(&shm.data->entrance[car.entrance].LPRSensor.LRPcond);   
 
     // Wait for boom gate to open (10ms)
@@ -113,6 +116,7 @@ void *carSimulate(void *arg){
     usleep(10000);
 
     //SET OFF LPR ON FLOOR
+    shm.data->exit->LPRSensor.plate = car.plate;
     pthread_cond_signal(&shm.data->level[carLevel].LPRSensor.LRPcond);
 
     // park for random time (100-10000ms)
@@ -126,7 +130,7 @@ void *carSimulate(void *arg){
 
     // drive to exit (10ms)
     usleep(10000);
-    car.exit = generateRandom(1,ENTRANCES);
+    car.exit = generateRandom(1,EXITS);
     printf("Car going to exit: %d\n", car.exit);
 
     // TRIGGER LRP AT EXIT
