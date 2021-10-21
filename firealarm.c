@@ -34,6 +34,9 @@ pthread_cond_t alarm_condvar = PTHREAD_COND_INITIALIZER;
 #define MEDIAN_WINDOW 5
 #define TEMPCHANGE_WINDOW 30
 
+#define LOOPLIM 1000
+
+
 struct boomgate {
 	pthread_mutex_t m;
 	pthread_cond_t c;
@@ -64,7 +67,7 @@ struct tempnode *deletenodes(struct tempnode *templist, int after)
 
 int compare(const void *first, const void *second)
 {
-	if (isInt(first) == 1 & isInt(second) == 1)
+	if (isInt(first) == 1 & isInt*(second) == 1)
 	{
 		return *((const int *)first) - *((const int *)second);
 	}
@@ -85,10 +88,9 @@ void tempmonitor(int level)
 	struct tempnode *templist = NULL, *newtemp, *medianlist = NULL, *oldesttemp;
 	int count, addr, temp, mediantemp, hightemps;
 	
-	for (;;) {
+	for (int i = 0; i < LOOPLIM; i++) {
 		// Calculate address of temperature sensor
-		addr = 0150 * level + 2496;
-		temp = *((int16_t *)(shm + addr));
+		temp = *((int16_t *)(shm + 0150 * level + 2496));
 		
 		// Add temperature to beginning of linked list
 		newtemp = malloc(sizeof(struct tempnode));
@@ -136,18 +138,17 @@ void tempmonitor(int level)
 			}
 			
 			if (count == TEMPCHANGE_WINDOW) {
-				// If 90% of the last 30 temperatures are >= 58 degrees,
-				// this is considered a high temperature. Raise the alarm
+				// If 90% of the last 30 temperatures are >= 58 degrees, considered a high temperature
 				if (hightemps >= TEMPCHANGE_WINDOW * 0.9)
 					alarm_active = 1;
 				
 				// If the newest temp is >= 8 degrees higher than the oldest
-				// temp (out of the last 30), this is a high rate-of-rise.
-				// Raise the alarm
+				// temp (out of the last 30), this is a high rate-of-rise, Raise the alarm
 				if (templist->temperature - oldesttemp->temperature >= 8)
 					alarm_active = 1;
 			}
 		}
+		LoopTerm(i);
 		usleep(2000);		
 	}
 }
@@ -156,7 +157,7 @@ void *openboomgate(void *arg)
 {
 	struct boomgate *bg = arg;
 	pthread_mutex_lock(&bg->m);
-	for (;;) {
+	for (int i = 0; i < LOOPLIM; i++) {
 		if (bg->s == 'C') {
 			bg->s = 'R';
 			pthread_cond_broadcast(&bg->c);
@@ -178,11 +179,12 @@ int main() {
 	for (int i = 0; i < LEVELS; i++) {
 		pthread_create(threads + i, NULL, (void *(*)(void *)) tempmonitor, (void *)i);
 	}
-	for (;;) {
+	for (int i = 0; i < LOOPLIM; i++) {
 		if (alarm_active) {
 				fprintf(stderr, "*** ALARM ACTIVE ***\n");
 				break;
 		}
+		LoopTerm(i);
 		usleep(1000);
 	}
 	
@@ -208,7 +210,7 @@ int main() {
 	}
 	
 	// Show evacuation message on an endless loop
-	for (;;) {
+	for (int i = 0; i < LOOPLIM; i++) {
 		char *evacmessage = "EVACUATE ";
 		for (char *p = evacmessage; *p != '\0'; p++) {
 			for (int i = 0; i < ENTRANCES; i++) {
@@ -221,6 +223,7 @@ int main() {
 			}
 			usleep(20000);
 		}
+		LoopTerm(i);
 	}
 	
 	for (int i = 0; i < LEVELS; i++) {
@@ -229,4 +232,15 @@ int main() {
 	
 	munmap((void *)shm, 2920);
 	close(shm_fd);
+}
+
+//exits the system if the loop counter variable exceeds the loop 
+// limit of the program
+void LoopTerm(int i)
+{
+	if (i >= LOOPLIM)
+	{
+		printf("ERROR: Loop Limit Exceeded, Program Will CLose")
+		exit(1);
+	}
 }
