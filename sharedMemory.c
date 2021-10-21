@@ -10,8 +10,8 @@
  */
 typedef struct LPRSensor {
     pthread_mutex_t LPRmutex;
-    pthread_cond_t LRPcond;
-    const char* plate;
+    pthread_cond_t LPRcond;
+    char plate[6];
 } LPRSensor_t;
 
 /**
@@ -22,7 +22,7 @@ typedef struct gate {
 	pthread_cond_t gatecond;
 	char status;    
 } gate_t;
-
+ 
 /**
  * Information sign 
  */

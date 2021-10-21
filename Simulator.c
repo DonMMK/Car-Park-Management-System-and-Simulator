@@ -62,19 +62,25 @@ int main()
     printf("...STARTING SIMULATION...\n");    
     
     // shm.data->entrance[0].gate.status = 'c';
+    // shm.data->entrance[0].informationSign.display = 'z';
+    // shm.data->level[0].fireAlarm = 'f';
+    car_t car;
+    car.plate = generatePlate(80);
+    strcpy(shm.data->entrance[0].LPRSensor.plate, car.plate);
 
-    for (int i = 0;i < CAR_LIMIT;i++){
-        pthread_create(&carThreads[i], NULL, carSimulate, NULL);
-    }
 
-    for (int i = 0;i < CAR_LIMIT;i++){
-        // Generate car every 1 - 100 milliseconds
-        waitTime = generateRandom(1,100) * 1000;
-        usleep(waitTime);
+    // for (int i = 0;i < CAR_LIMIT;i++){
+    //     pthread_create(&carThreads[i], NULL, carSimulate, NULL);
+    // }
 
-        // SPAWN CAR THREAD 
-        pthread_join(carThreads[i],NULL);
-    }
+    // for (int i = 0;i < CAR_LIMIT;i++){
+    //     // Generate car every 1 - 100 milliseconds
+    //     waitTime = generateRandom(1,100) * 1000;
+    //     usleep(waitTime);
+
+    //     // SPAWN CAR THREAD 
+    //     pthread_join(carThreads[i],NULL);
+    // }
 }
 
 
@@ -106,18 +112,18 @@ void *carSimulate(void *arg){
     printf("Car will be heading to level: %d\n", carLevel);  
 
     // TRIGGER LRP AT ENTRANCE
-    shm.data->entrance[car.entrance].LPRSensor.plate = car.plate;
-    pthread_cond_signal(&shm.data->entrance[car.entrance].LPRSensor.LRPcond);   
+    strcpy(shm.data->entrance[car.entrance - 1].LPRSensor.plate, car.plate);
+    // pthread_cond_signal(&shm.data->entrance[0].LPRSensor.LPRcond);   
 
     // Wait for boom gate to open (10ms)
-    pthread_cond_wait(&shm.data->exit[car.exit].gate.gatecond, &shm.data->exit[car.exit].gate.gatemutex);
+    // pthread_cond_wait(&shm.data->entrance[car.entrance - 1].gate.gatecond, &shm.data->exit[car.exit - 1].gate.gatemutex);
 
     // drive to park (10ms)
     usleep(10000);
 
     //SET OFF LPR ON FLOOR
-    shm.data->exit->LPRSensor.plate = car.plate;
-    pthread_cond_signal(&shm.data->level[carLevel].LPRSensor.LRPcond);
+    // strcpy(shm.data->level[carLevel - 1].LPRSensor.plate, car.plate);
+    // pthread_cond_signal(&shm.data->level[carLevel - 1].LPRSensor.LPRcond);
 
     // park for random time (100-10000ms)
     usleep(10000);
@@ -126,7 +132,8 @@ void *carSimulate(void *arg){
     usleep(waitTime);
 
     //SET OFF LPR ON FLOOR
-    pthread_cond_signal(&shm.data->level[carLevel].LPRSensor.LRPcond);
+    // strcpy(shm.data->level[carLevel - 1].LPRSensor.plate, car.plate);
+    // pthread_cond_signal(&shm.data->level[carLevel - 1].LPRSensor.LPRcond);
 
     // drive to exit (10ms)
     usleep(10000);
@@ -134,10 +141,11 @@ void *carSimulate(void *arg){
     printf("Car going to exit: %d\n", car.exit);
 
     // TRIGGER LRP AT EXIT
-    pthread_cond_signal(&shm.data->exit[car.exit].LPRSensor.LRPcond);
+    // strcpy(shm.data->exit[car.exit - 1].LPRSensor.plate, car.plate);
+    //pthread_cond_signal(&shm.data->exit[car.exit - 1].LPRSensor.LPRcond);
 
     // Wait for boom gate to open (10ms)
-    pthread_cond_wait(&shm.data->exit[car.exit].gate.gatecond, &shm.data->exit[car.exit].gate.gatemutex);
+    // pthread_cond_wait(&shm.data->exit[car.exit - 1].gate.gatecond, &shm.data->exit[car.exit - 1].gate.gatemutex);
 
     // DELETE CAR THREAD 
     return 0;

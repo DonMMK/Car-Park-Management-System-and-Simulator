@@ -42,7 +42,7 @@
 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 void StatusLPR();
-
+void *entranceSimulate(void *arg);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 int LevelCapacity;
@@ -51,20 +51,27 @@ char SignStatus;
 char TempSensorStatus;
 char AlarmStatus;
 int CarparkRevenue;
-
+shared_memory_t shm;
 
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
 {    
-    shared_memory_t shm;
     create_shared_object_R(&shm, SHARE_NAME);
+    // pthread_t carThreads;
+    // printf("Char stored entrace gate: %c \n", shm.data->entrance[0].gate.status);
+    // printf("Char stored info sign: %c \n", shm.data->entrance[0].informationSign.display);
+    // printf("Char stored fire alarm: %c \n", shm.data->level[0].fireAlarm);
 
-    //printf("Data stored entrace gate: %c \n", shm.data->entrance[0].gate.status);
+    printf("Plate stored on entrance LPR 1: %s \n", shm.data->entrance[0].LPRSensor.plate);
+    // printf("Plate stored on entrance LPR 2: %s \n", shm.data->entrance[1].LPRSensor.plate);
+    // printf("Plate stored on entrance LPR 3: %s \n", shm.data->entrance[2].LPRSensor.plate);
+    // printf("Plate stored on entrance LPR 4: %s \n", shm.data->entrance[3].LPRSensor.plate);
+    // printf("Plate stored on entrance LPR 5: %s \n", shm.data->entrance[4].LPRSensor.plate);
+    // pthread_create(&carThreads, NULL, entranceSimulate, NULL);
+    // pthread_join(carThreads,NULL);
 
     
-
-
 }
 
 // --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
@@ -82,5 +89,12 @@ void StatusLPR(){
     printf("\n----------------------------------------------------------------");
     printf("\n");
     return; //
+}
+
+void *entranceSimulate(void *arg){
+    pthread_cond_wait(&shm.data->entrance[0].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex);
+    printf("Completed wait\n");
+
+    return 0;
 }
 
