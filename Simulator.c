@@ -11,149 +11,122 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <stdint.h>
 
-#include "shm_ops.c"
+#include "carQueue.h"
+#include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
-#define CAR_LIMIT 1
-
-
-// ------------------------------------ STRUCTURE DECLERATIONS ------------------------------------ // 
-typedef struct car {
-    int entrance; 
-    int exit;
-    char* plate; 
-} car_t;
-
 
 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
 void printFile();
-char* generatePlate(int probability);
-char* randomPlate();
-void *carSimulate(void *arg);
-
+char *generatePlate(int probability);
+char *randomPlate();
+void initialiseSharedMemory(shared_memory_t shm);
+void *spawnCar(void *args);
+void *entranceSimulate(void *entranceNumber);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 char allowedPlates[100][10];
 shared_memory_t shm;
+carQueue_t entranceQueue[ENTRANCES];
 
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
 {
-    // Create variables 
-    int waitTime;
-    pthread_t carThreads[CAR_LIMIT];
+    pthread_t carSpawner;
+    pthread_t entranceThread[ENTRANCES];
 
     // Initialise random seed
     time_t t;
     srand((unsigned) time(&t));
 
+    // Create shared memory object
     create_shared_object_RW(&shm, SHARE_NAME);
+
+    // Initialise mutexs and condition variables in shared memory
+    initialiseSharedMemory(shm);
 
     // Read the number plates 
     readFile("plates.txt");
-    // printFile();
 
     // BEGINING SIMULATION
     printf("...STARTING SIMULATION...\n");    
-    
-    // shm.data->entrance[0].gate.status = 'c';
-    // shm.data->entrance[0].informationSign.display = 'z';
-    // shm.data->level[0].fireAlarm = 'f';
-    car_t car;
-    car.plate = generatePlate(80);
-    strcpy(shm.data->entrance[0].LPRSensor.plate, car.plate);
 
+    // Create threads 
+    pthread_create(&carSpawner, NULL, &spawnCar, NULL);
+    for (int i = 0;i < ENTRANCES;i++){
+        int* a = malloc(sizeof(int));
+        *a = i;
+        pthread_create(&entranceThread[i], NULL, &entranceSimulate, a);
+    }
 
-    // for (int i = 0;i < CAR_LIMIT;i++){
-    //     pthread_create(&carThreads[i], NULL, carSimulate, NULL);
-    // }
+    // Join threads 
+    pthread_join(carSpawner,NULL);
+    for (int i = 0;i < ENTRANCES;i++){
+        // Join entrance threads
 
-    // for (int i = 0;i < CAR_LIMIT;i++){
-    //     // Generate car every 1 - 100 milliseconds
-    //     waitTime = generateRandom(1,100) * 1000;
-    //     usleep(waitTime);
-
-    //     // SPAWN CAR THREAD 
-    //     pthread_join(carThreads[i],NULL);
-    // }
+        pthread_join(entranceThread[i],NULL);
+    }
 }
 
 
-
-// --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
-
-void *carSimulate(void *arg){
-    car_t car;
+// ------------------------------------------- THREADS ------------------------------------------- // 
+void *spawnCar(void *args) {
+    int entrance; 
+    char* plate;  
     int waitTime;
 
-    // Spawn car at random entrance
-    car.entrance = generateRandom(1,ENTRANCES);
-    printf("Car arriving at entrance: %d\n", car.entrance);
-
-    // Generate numberplate (from list/random)
-    car.plate = generatePlate(80);
-    printf("Car has plate number: %s\n", car.plate);    
-
-    // wait 2ms to trigger LPR
-    usleep(2000);
-
-    // Read digital sign
-    int carLevel = generateRandom(1,LEVELS);
-
-    // Check if car level is a digit between 1 - LEVELS
-    if (carLevel > LEVELS || carLevel <= 0 || isdigit(carLevel) != 0) {
-        return 0;
+    for (int i = 0; i < ENTRANCES; i++){
+        plateInit(&entranceQueue[i]);
     }
-    printf("Car will be heading to level: %d\n", carLevel);  
 
-    // TRIGGER LRP AT ENTRANCE
-    strcpy(shm.data->entrance[car.entrance - 1].LPRSensor.plate, car.plate);
-    // pthread_cond_signal(&shm.data->entrance[0].LPRSensor.LPRcond);   
+    // Generate 10 cars (for now)
+    for (int i = 0; i < 10; i++) {
+        // Generate car every 1 - 100 milliseconds
+        waitTime = generateRandom(1,100) * 1000;
+        usleep(waitTime);
 
-    // Wait for boom gate to open (10ms)
-    // pthread_cond_wait(&shm.data->entrance[car.entrance - 1].gate.gatecond, &shm.data->exit[car.exit - 1].gate.gatemutex);
+        // Spawn car at random entrance
+        entrance = generateRandom(1,ENTRANCES);
+        printf("Car arriving at entrance: %d\n", entrance);
 
-    // drive to park (10ms)
-    usleep(10000);
+        // Generate numberplate (from list/random)
+        plate = generatePlate(80);
+        printf("Car has plate number: %s\n", plate); 
 
-    //SET OFF LPR ON FLOOR
-    // strcpy(shm.data->level[carLevel - 1].LPRSensor.plate, car.plate);
-    // pthread_cond_signal(&shm.data->level[carLevel - 1].LPRSensor.LPRcond);
+        addPlate(&entranceQueue[entrance], plate);
+    }
+}
 
-    // park for random time (100-10000ms)
-    usleep(10000);
-    waitTime = generateRandom(100,10000) * 1000;
-    printf("Parked for %d seconds...\n", waitTime/1000000);
-    usleep(waitTime);
+void *entranceSimulate(void *args) {
+    int index = *(int*)args;
+    while (1) {
+        // Wait for manager LPR thread to signal that LPR is free
+        pthread_mutex_lock(&shm.data->entrance[index].LPRSensor.LPRmutex);
+        pthread_cond_wait(&shm.data->entrance[index].LPRSensor.LPRcond, &shm.data->entrance->LPRSensor.LPRmutex);
+        pthread_mutex_unlock(&shm.data->entrance[index].LPRSensor.LPRmutex);
+        
+        // Make sure plate is in queue
+        while(entranceQueue[index].size <= 0);
 
-    //SET OFF LPR ON FLOOR
-    // strcpy(shm.data->level[carLevel - 1].LPRSensor.plate, car.plate);
-    // pthread_cond_signal(&shm.data->level[carLevel - 1].LPRSensor.LPRcond);
+        // Copy a plate into memory
+        pthread_mutex_lock(&shm.data->entrance[index].LPRSensor.LPRmutex);
+        strcpy(shm.data->entrance[index].LPRSensor.plate, entranceQueue[index].plateQueue[0]);
+        pthread_mutex_unlock(&shm.data->entrance[index].LPRSensor.LPRmutex);
+        popPlate(&entranceQueue[index]);
 
-    // drive to exit (10ms)
-    usleep(10000);
-    car.exit = generateRandom(1,EXITS);
-    printf("Car going to exit: %d\n", car.exit);
-
-    // TRIGGER LRP AT EXIT
-    // strcpy(shm.data->exit[car.exit - 1].LPRSensor.plate, car.plate);
-    //pthread_cond_signal(&shm.data->exit[car.exit - 1].LPRSensor.LPRcond);
-
-    // Wait for boom gate to open (10ms)
-    // pthread_cond_wait(&shm.data->exit[car.exit - 1].gate.gatecond, &shm.data->exit[car.exit - 1].gate.gatemutex);
-
-    // DELETE CAR THREAD 
-    return 0;
+        // Signal manager thread with new plate
+        pthread_cond_signal(&shm.data->entrance[index].LPRSensor.LPRcond);
+    }
 }
 
 
-
-
+// --------------------------------------- HELPER FUNCTIONS --------------------------------------- // 
 // Generates random numbers in range [lower, upper]. 
 // https://www.geeksforgeeks.org/generating-random-number-range-c/?fbclid=IwAR1a4I7mqxidG7EHit34MRmTLgge9xMfBQtw8TcCXVlYC9_QqrATtfESm94
 int generateRandom(int lower, int upper)
@@ -199,6 +172,7 @@ char* generatePlate(int probability){
     }
 }
 
+// Constructs a random plate
 char* randomPlate(){
     int first = generateRandom(0, 9);
     int second = generateRandom(0, 9);
@@ -220,3 +194,4 @@ char* randomPlate(){
 
     return finstr;
 }
+
