@@ -11,7 +11,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "shm_ops.c"
+#include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
 
@@ -58,20 +58,17 @@ shared_memory_t shm;
 int main()
 {    
     create_shared_object_R(&shm, SHARE_NAME);
-    // pthread_t carThreads;
-    // printf("Char stored entrace gate: %c \n", shm.data->entrance[0].gate.status);
-    // printf("Char stored info sign: %c \n", shm.data->entrance[0].informationSign.display);
-    // printf("Char stored fire alarm: %c \n", shm.data->level[0].fireAlarm);
-
-    printf("Plate stored on entrance LPR 1: %s \n", shm.data->entrance[0].LPRSensor.plate);
-    // printf("Plate stored on entrance LPR 2: %s \n", shm.data->entrance[1].LPRSensor.plate);
-    // printf("Plate stored on entrance LPR 3: %s \n", shm.data->entrance[2].LPRSensor.plate);
-    // printf("Plate stored on entrance LPR 4: %s \n", shm.data->entrance[3].LPRSensor.plate);
-    // printf("Plate stored on entrance LPR 5: %s \n", shm.data->entrance[4].LPRSensor.plate);
-    // pthread_create(&carThreads, NULL, entranceSimulate, NULL);
-    // pthread_join(carThreads,NULL);
-
     
+    pthread_t entranceLPR_thread[ENTRANCES];
+
+    for (int i = 0;i < ENTRANCES;i++){
+        pthread_create(&entranceLPR_thread[i], NULL, entranceLPR, i);
+    }
+
+    for (int i = 0;i < ENTRANCES;i++){
+        // Join entrance threads
+        pthread_join(entranceLPR_thread[i],NULL);
+    }
 }
 
 // --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
@@ -91,10 +88,26 @@ void StatusLPR(){
     return; //
 }
 
-void *entranceSimulate(void *arg){
-    pthread_cond_wait(&shm.data->entrance[0].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex);
-    printf("Completed wait\n");
+void entranceLPR(int i){
+    // When entrance LPR is free, signal the simulator thread asking for a plate
+    while (1) {
+        pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+        pthread_cond_signal(&shm.data->entrance[i].LPRSensor.LPRcond);
+        pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+        
+        pthread_cond_wait(&shm.data->entrance[i].LPRSensor.LPRcond, &shm.data->entrance[i].LPRSensor.LPRmutex);
+    }
 
+    // 
+
+
+
+    
+    // pthread_mutex_lock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    while(!pthread_cond_wait(&shm.data->entrance[0].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex))
+    // pthread_mutex_unlock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    printf("Completed wait\n");
+    //printf("Plate stored on entrance LPR 1: %s \n", shm.data->entrance[0].LPRSensor.plate);
     return 0;
 }
 
