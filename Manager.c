@@ -79,10 +79,10 @@ int main()
  * Alarm, Car park revenue. */
 void StatusLPR(){
     printf("\n----------------------------------------------------------------");
-    printf("\nCapacity:");
-    printf("\nBoomgate:");
-    printf("\nSigns");
-    printf("\nTemperature");
+    printf("\nCapacity      :");
+    printf("\nBoomgate      :");
+    printf("\nSigns         :");
+    printf("\nTemperature   :");
     printf("\n----------------------------------------------------------------");
     printf("\n");
     return; //
