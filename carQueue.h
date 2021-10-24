@@ -2,13 +2,13 @@
 #include <string.h>
 
 #define MAX_CAPACITY 100
-#define STORAGE_CAPACITY 10
+#define STORAGE_CAPACITY 7
 
 typedef struct carQueue {
-	/// The current number of elements in the vector
+	// The current number of elements in the vector
 	int size;
 
-	/// The content of the vector.
+	// The content of the vector.
 	char plateQueue[MAX_CAPACITY][STORAGE_CAPACITY];
 } carQueue_t;
 

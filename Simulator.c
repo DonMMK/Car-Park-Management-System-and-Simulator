@@ -1,4 +1,4 @@
-// -------------------------------------------- HEADER -------------------------------------------- //
+// -------------------------------------------- HEADa -------------------------------------------- //
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,19 +27,18 @@ char *generatePlate(int probability);
 char *randomPlate();
 void initialiseSharedMemory(shared_memory_t shm);
 void *spawnCar(void *args);
-void *entranceSimulate(void *entranceNumber);
+void *entranceSimulate(void *args);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
-char allowedPlates[100][10];
+char allowedPlates[100][7];
 shared_memory_t shm;
-carQueue_t entranceQueue[ENTRANCES];
-
+carQueue_t entranceQueue;
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
 {
     pthread_t carSpawner;
-    pthread_t entranceThread[ENTRANCES];
+    pthread_t entranceThread;
 
     // Initialise random seed
     time_t t;
@@ -55,23 +54,15 @@ int main()
     readFile("plates.txt");
 
     // BEGINING SIMULATION
-    printf("...STARTING SIMULATION...\n");    
+    printf("S - STARTING SIMULATION\n");    
 
     // Create threads 
     pthread_create(&carSpawner, NULL, &spawnCar, NULL);
-    for (int i = 0;i < ENTRANCES;i++){
-        int* a = malloc(sizeof(int));
-        *a = i;
-        pthread_create(&entranceThread[i], NULL, &entranceSimulate, a);
-    }
+    pthread_create(&entranceThread, NULL, &entranceSimulate, NULL);
 
     // Join threads 
     pthread_join(carSpawner,NULL);
-    for (int i = 0;i < ENTRANCES;i++){
-        // Join entrance threads
-
-        pthread_join(entranceThread[i],NULL);
-    }
+    pthread_join(entranceThread,NULL);
 }
 
 
@@ -81,48 +72,39 @@ void *spawnCar(void *args) {
     char* plate;  
     int waitTime;
 
-    for (int i = 0; i < ENTRANCES; i++){
-        plateInit(&entranceQueue[i]);
-    }
+    plateInit(&entranceQueue);
+    
+    // Generate numberplate (from list/random)
+    plate = generatePlate(80);
+    printf("S - Car has plate number: %s\n", plate); 
 
-    // Generate 10 cars (for now)
-    for (int i = 0; i < 10; i++) {
-        // Generate car every 1 - 100 milliseconds
-        waitTime = generateRandom(1,100) * 1000;
-        usleep(waitTime);
-
-        // Spawn car at random entrance
-        entrance = generateRandom(1,ENTRANCES);
-        printf("Car arriving at entrance: %d\n", entrance);
-
-        // Generate numberplate (from list/random)
-        plate = generatePlate(80);
-        printf("Car has plate number: %s\n", plate); 
-
-        addPlate(&entranceQueue[entrance], plate);
-    }
-}
+    addPlate(&entranceQueue, plate);
+} 
 
 void *entranceSimulate(void *args) {
-    int index = *(int*)args;
-    while (1) {
-        // Wait for manager LPR thread to signal that LPR is free
-        pthread_mutex_lock(&shm.data->entrance[index].LPRSensor.LPRmutex);
-        pthread_cond_wait(&shm.data->entrance[index].LPRSensor.LPRcond, &shm.data->entrance->LPRSensor.LPRmutex);
-        pthread_mutex_unlock(&shm.data->entrance[index].LPRSensor.LPRmutex);
-        
-        // Make sure plate is in queue
-        while(entranceQueue[index].size <= 0);
+    printf("S - Waiting for clear LPR. Plate value is: %s\n", shm.data->entrance[0].LPRSensor.plate);
+    // Wait for manager LPR thread to signal that LPR is free
 
-        // Copy a plate into memory
-        pthread_mutex_lock(&shm.data->entrance[index].LPRSensor.LPRmutex);
-        strcpy(shm.data->entrance[index].LPRSensor.plate, entranceQueue[index].plateQueue[0]);
-        pthread_mutex_unlock(&shm.data->entrance[index].LPRSensor.LPRmutex);
-        popPlate(&entranceQueue[index]);
-
-        // Signal manager thread with new plate
-        pthread_cond_signal(&shm.data->entrance[index].LPRSensor.LPRcond);
+    pthread_mutex_lock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    printf("S - Locked\n");
+    while (strcmp(shm.data->entrance[0].LPRSensor.plate, "000000")){ 
+        pthread_cond_wait(&shm.data->entrance[0].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex);
     }
+    printf("S - unlocked\n");
+    pthread_mutex_unlock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    printf("S - LPR is clear. Plate value is: %s\n", shm.data->entrance[0].LPRSensor.plate);
+
+    // Make sure plate is in queue
+    while(entranceQueue.size <= 0);
+
+    // Copy a plate into memory
+    pthread_mutex_lock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    strcpy(shm.data->entrance[0].LPRSensor.plate, entranceQueue.plateQueue[0]);
+    pthread_mutex_unlock(&shm.data->entrance[0].LPRSensor.LPRmutex);
+    popPlate(&entranceQueue);
+
+    // Signal manager thread with new plate
+    pthread_cond_signal(&shm.data->entrance[0].LPRSensor.LPRcond);
 }
 
 
@@ -162,11 +144,11 @@ char* generatePlate(int probability){
     int random = generateRandom(0, 100);
     if (random <= probability){
         int selector = generateRandom(0, 99);
-        printf("It is an allowed plate\n");
+        // printf("It is an allowed plate\n");
         return allowedPlates[selector];
     }
     else{
-        printf("It is a random plate\n");
+        // printf("It is a random plate\n");
         char *p = randomPlate();
         return p;
     }

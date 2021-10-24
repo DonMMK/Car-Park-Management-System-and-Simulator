@@ -11,7 +11,7 @@
 typedef struct LPRSensor {
     pthread_mutex_t LPRmutex;
     pthread_cond_t LPRcond;
-    char plate[6];
+    char plate[7];
 } LPRSensor_t;
 
 /**

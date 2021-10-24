@@ -185,30 +185,48 @@ bool create_shared_object_R( shared_memory_t* shm, const char* share_name ) {
 
 
 void initialiseSharedMemory(shared_memory_t shm){
+    pthread_mutexattr_t attr_m;
+    pthread_condattr_t attr_c;
+    pthread_mutexattr_init(&attr_m);
+    pthread_condattr_init(&attr_c);
+    pthread_mutexattr_setpshared(&attr_m, PTHREAD_PROCESS_SHARED);
+    pthread_condattr_setpshared(&attr_c, PTHREAD_PROCESS_SHARED);
+
     for (int i = 0;i < ENTRANCES;i++){
         // Intilise Mutexs and Condition variables for LPR sensors
-        pthread_mutex_init(&shm.data->entrance[i].LPRSensor.LPRmutex, NULL);
-        pthread_cond_init(&shm.data->entrance[i].LPRSensor.LPRcond, NULL);
+        pthread_mutex_init(&shm.data->entrance[i].LPRSensor.LPRmutex, &attr_m);
+        pthread_cond_init(&shm.data->entrance[i].LPRSensor.LPRcond, &attr_c);
         // Intilise Mutexs and Condition variables for Gates
-        pthread_mutex_init(&shm.data->entrance[i].gate.gatemutex, NULL);
-        pthread_cond_init(&shm.data->entrance[i].gate.gatecond, NULL);
+        pthread_mutex_init(&shm.data->entrance[i].gate.gatemutex, &attr_m);
+        pthread_cond_init(&shm.data->entrance[i].gate.gatecond, &attr_c);
         // Intilise Mutexs and Condition variables for Information signs
-        pthread_mutex_init(&shm.data->entrance[i].informationSign.ISmutex, NULL);
-        pthread_cond_init(&shm.data->entrance[i].informationSign.IScond, NULL);
-
-        // // Set mutexs and conds to process shared
-        // // LPR Sensors
-        // pthread_mutexattr_setpshared(&shm.data->entrance[i].LPRSensor.LPRmutex, PTHREAD_PROCESS_SHARED);
-        // pthread_condattr_getpshared(&shm.data->entrance[i].LPRSensor.LPRmutex, PTHREAD_PROCESS_SHARED);
-        // // Gates
-        // pthread_mutexattr_setpshared(&shm.data->entrance[i].gate.gatemutex, PTHREAD_PROCESS_SHARED);
-        // pthread_condattr_getpshared(&shm.data->entrance[i].gate.gatecond, PTHREAD_PROCESS_SHARED);
-        // // Information Signs
-        // pthread_mutexattr_setpshared(&shm.data->entrance[i].informationSign.ISmutex, PTHREAD_PROCESS_SHARED);
-        // pthread_condattr_getpshared(&shm.data->entrance[i].informationSign.IScond, PTHREAD_PROCESS_SHARED);
+        pthread_mutex_init(&shm.data->entrance[i].informationSign.ISmutex, &attr_m);
+        pthread_cond_init(&shm.data->entrance[i].informationSign.IScond, &attr_c);
 
         // Initiliase status of the gates to 'closed'
         shm.data->entrance[i].gate.status = 'C';
+        strcpy(shm.data->entrance[i].LPRSensor.plate, "xxxxxx");
+    }
 
+    for (int i = 0;i < EXITS;i++){
+        // Intilise Mutexs and Condition variables for LPR sensors
+        pthread_mutex_init(&shm.data->exit[i].LPRSensor.LPRmutex, &attr_m);
+        pthread_cond_init(&shm.data->exit[i].LPRSensor.LPRcond, &attr_c);
+        // Intilise Mutexs and Condition variables for Gates
+        pthread_mutex_init(&shm.data->exit[i].gate.gatemutex, &attr_m);
+        pthread_cond_init(&shm.data->exit[i].gate.gatecond, &attr_c);
+
+        // Initiliase status of the gates to 'closed'
+        shm.data->exit[i].gate.status = 'C';
+        strcpy(shm.data->exit[i].LPRSensor.plate, "xxxxxx");
+    }
+
+    for (int i = 0;i < LEVELS;i++){
+        // Intilise Mutexs and Condition variables for LPR sensors
+        pthread_mutex_init(&shm.data->level[i].LPRSensor.LPRmutex, &attr_m);
+        pthread_cond_init(&shm.data->level[i].LPRSensor.LPRcond, &attr_c);
+
+        // Initiliase number plate to be xxxxxx
+        strcpy(shm.data->level[i].LPRSensor.plate, "xxxxxx");
     }
 }
