@@ -82,18 +82,14 @@ void *spawnCar(void *args) {
 } 
 
 void *entranceSimulate(void *args) {
-    printf("S - Waiting for clear LPR. Plate value is: %s\n", shm.data->entrance[0].LPRSensor.plate);
     // Wait for manager LPR thread to signal that LPR is free
-
     pthread_mutex_lock(&shm.data->entrance[0].LPRSensor.LPRmutex);
-    printf("S - Locked\n");
     while (strcmp(shm.data->entrance[0].LPRSensor.plate, "000000")){ 
         pthread_cond_wait(&shm.data->entrance[0].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex);
     }
-    printf("S - unlocked\n");
     pthread_mutex_unlock(&shm.data->entrance[0].LPRSensor.LPRmutex);
-    printf("S - LPR is clear. Plate value is: %s\n", shm.data->entrance[0].LPRSensor.plate);
-
+    // LRP has been cleared 
+    
     // Make sure plate is in queue
     while(entranceQueue.size <= 0);
 
