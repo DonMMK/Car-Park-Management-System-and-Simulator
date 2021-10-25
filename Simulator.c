@@ -140,11 +140,11 @@ char* generatePlate(int probability){
     int random = generateRandom(0, 100);
     if (random <= probability){
         int selector = generateRandom(0, 99);
-        // printf("It is an allowed plate\n");
+        printf("SimGP - It is an allowed plate\n");
         return allowedPlates[selector];
     }
     else{
-        // printf("It is a random plate\n");
+        printf("SimGP - It is a random plate\n");
         char *p = randomPlate();
         return p;
     }
