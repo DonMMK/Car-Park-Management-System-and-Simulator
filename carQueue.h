@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_CAPACITY 100
-#define STORAGE_CAPACITY 7
+#define MAX_CAPACITY 1000
+#define STORAGE_CAPACITY 10
 
 typedef struct carQueue {
 	// The current number of elements in the vector
@@ -15,6 +15,7 @@ typedef struct carQueue {
 void plateInit(carQueue_t *carQueue);
 void addPlate(carQueue_t *carQueue, char *plate);
 void popPlate(carQueue_t* carQueue); 
+void popRandom(carQueue_t* carQueue, int index); 
 void printPlate(carQueue_t* carQueue);
 
 void plateInit(carQueue_t *carQueue){
@@ -37,6 +38,22 @@ void popPlate(carQueue_t* carQueue){
         strcpy(old_data[i], carQueue->plateQueue[i]);
     }
     for (int i = 0; i < old_size - 1; i++){
+        strcpy(carQueue->plateQueue[i], old_data[i + 1]);
+    }
+    carQueue->size = old_size - 1;
+}
+
+void popRandom(carQueue_t* carQueue, int index){
+    int old_size = carQueue->size;
+    char old_data[MAX_CAPACITY][STORAGE_CAPACITY];
+    for (int i = 0; i < old_size; i++){
+        strcpy(old_data[i], carQueue->plateQueue[i]);
+    }
+    for (int i = 0; i < index; i++){
+        strcpy(carQueue->plateQueue[i], old_data[i]);
+    }
+
+    for (int i = index; i < old_size - 1; i++){
         strcpy(carQueue->plateQueue[i], old_data[i + 1]);
     }
     carQueue->size = old_size - 1;

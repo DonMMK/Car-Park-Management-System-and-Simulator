@@ -10,8 +10,14 @@ typedef struct car {
 	/// The content of the vector.
 	char plate[STORAGE_CAPACITY];
 
-    // Exit time 
-    double exitTime;
+    // Entrance time 
+    clock_t entranceTime;
+
+    // Park time 
+    clock_t parkTime;
+
+    // Level
+    int level;
 
     // Exit status 
     bool exitStatus;
@@ -29,7 +35,7 @@ typedef struct carStorage {
 } carStorage_t;
 
 void storageInit(carStorage_t *carStorage);
-void addCar(carStorage_t *carStorage, char *plate, long time, int LPRcount);
+void addCar(carStorage_t *carStorage, char *plate, clock_t entranceTime, clock_t parkTime, int level);
 void removeCar(carStorage_t* carQueue, char *plate);
 void printCarList(carStorage_t* carStorage);
 int findIndex(carStorage_t* carStorage, char *plate);
@@ -38,17 +44,21 @@ void storageInit(carStorage_t *carStorage){
     carStorage->size = 0;
     for (int i = 0; i < MAX_CARPARK; i++){
         strcpy(carStorage->car[i].plate, "empty");
-        carStorage->car[i].exitTime = 0;
-        carStorage->car[i].exitTime = false;
+        carStorage->car[i].entranceTime = 0;
+        carStorage->car[i].parkTime = 0;
+        carStorage->car[i].exitStatus = false;
+        carStorage->car[i].level = 1;
         carStorage->car[i].LPRcount = 0;
     }
 }
 
-void addCar(carStorage_t *carStorage, char *plate, long time, int LPRcount){
+void addCar(carStorage_t *carStorage, char *plate, clock_t entranceTime, clock_t parkTime, int level){
     int old_size = carStorage->size;
     strcpy(carStorage->car[old_size].plate, plate);
-    carStorage->car[old_size].exitTime = time;
-    carStorage->car[old_size].LPRcount = LPRcount;
+    carStorage->car[old_size].entranceTime = entranceTime;
+    carStorage->car[old_size].parkTime = parkTime;
+    carStorage->car[old_size].level = level;
+    carStorage->car[old_size].exitStatus = false;
     carStorage->size = old_size + 1;
 }
 
@@ -59,7 +69,9 @@ void removeCar(carStorage_t* carStorage, char *plate){
 
     for (int i = 0; i < old_size; i++){
         strcpy(old_car[i].plate, carStorage->car[i].plate);
-        old_car[i].exitTime = carStorage->car[i].exitTime;
+        old_car[i].entranceTime = carStorage->car[i].entranceTime;
+        old_car[i].parkTime = carStorage->car[i].parkTime;
+        old_car[i].level = carStorage->car[i].level;
         old_car[i].exitStatus = carStorage->car[i].exitStatus;
         old_car[i].LPRcount = carStorage->car[i].LPRcount;
     }
@@ -73,7 +85,9 @@ void removeCar(carStorage_t* carStorage, char *plate){
 
     for (int i = loc; i < old_size - 1; i++){
         strcpy(carStorage->car[i].plate, old_car[i + 1].plate);
-        carStorage->car[i].exitTime = old_car[i + 1].exitTime;
+        carStorage->car[i].entranceTime = old_car[i + 1].entranceTime;
+        carStorage->car[i].parkTime = old_car[i + 1].parkTime;
+        carStorage->car[i].level = old_car[i + 1].level;
         carStorage->car[i].exitStatus = old_car[i + 1].exitStatus;
         carStorage->car[i].LPRcount = old_car[i + 1].LPRcount;
     }
@@ -83,15 +97,7 @@ void removeCar(carStorage_t* carStorage, char *plate){
 
 int findIndex(carStorage_t* carStorage, char *plate){
     int old_size = carStorage->size;
-    car_t old_car[MAX_CARPARK];
     int loc;
-
-    for (int i = 0; i < old_size; i++){
-        strcpy(old_car[i].plate, carStorage->car[i].plate);
-        old_car[i].exitTime = carStorage->car[i].exitTime;
-        old_car[i].exitStatus = carStorage->car[i].exitStatus;
-        old_car[i].LPRcount = carStorage->car[i].LPRcount;
-    }
 
     for (int i = 0; i < old_size; i++){
         if (strcmp(carStorage->car[i].plate, plate) == 0){
@@ -107,7 +113,9 @@ void printCarList(carStorage_t* carStorage){
     printf("NUMBER OF PLATES ARE: %d\n", carStorage->size); 
     for (int i = 0; i < carStorage->size; i++){
         printf("Plate number %d is: %s\n", i, carStorage->car[i].plate);
-        printf("Exit time of car %d is: %f\n", i, carStorage->car[i].exitTime);
+        printf("Entrance time of car %d is: %f\n", i, carStorage->car[i].entranceTime);
+        printf("Park time of car %d is: %f\n", i, carStorage->car[i].parkTime);
+        printf("Level of car %d is: %f\n", i, carStorage->car[i].level);
         printf("Number of LRP count %d is: %d\n", i, carStorage->car[i].LPRcount);
     }
 }
@@ -133,4 +141,3 @@ void printCarList(carStorage_t* carStorage){
 //     printCarList(&carStorage);
 //     printf("\n");
 // }
-
