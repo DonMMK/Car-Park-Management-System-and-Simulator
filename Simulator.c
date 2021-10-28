@@ -1,5 +1,5 @@
 // -------------------------------------------- HEADa -------------------------------------------- //
-#include <semaphore.h>
+#include <semaphore.h> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -17,7 +17,7 @@
 #include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
-#define CAR_LIMIT 20
+#define CAR_LIMIT 5
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
@@ -26,7 +26,7 @@ char *generatePlate(int probability);
 char *randomPlate();
 void initialiseSharedMemory(shared_memory_t shm);
 void *spawnCar(void *args);
-void *entranceSimulate(int i);
+void *entranceSimulate(void *arg);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 char allowedPlates[100][7];
@@ -64,15 +64,18 @@ int main()
     printf("S - STARTING SIMULATION\n");    
 
     // Create threads 
+    int i;
     pthread_create(&carSpawner, NULL, &spawnCar, NULL);
-    for (int i = 0; i < ENTRANCES; i++){
-        pthread_create(&entranceThread[i], NULL, &entranceSimulate, i);
+    for (i = 0; i < ENTRANCES; i++){
+        int* p = malloc(sizeof(int));
+        *p = i;
+        pthread_create(&entranceThread[i], NULL, &entranceSimulate, p);
     }
     
     // Join threads 
     pthread_join(carSpawner,NULL);
-    for (int i = 0; i < ENTRANCES; i++){
-        pthread_join(&entranceThread[i], NULL);
+    for (i = 0; i < ENTRANCES; i++){
+        pthread_join(entranceThread[i], NULL);
     }
 }
 
@@ -96,7 +99,7 @@ void *spawnCar(void *args) {
         usleep(waitTime);
 
         int entranceCar = generateRandom(0,4);
-        entranceCar = 0;
+        // entranceCar = 0;
 
         printf("The plate %s is arriving at entrance %d\n",plate,entranceCar + 1);
         // SPAWN CAR THREAD 
@@ -106,12 +109,13 @@ void *spawnCar(void *args) {
     }
 } 
 
-void *entranceSimulate(int i) {
+void *entranceSimulate(void *arg) {
+    int i = *(int*) arg;
     for (;;){
         // Wait for manager LPR thread to signal that LPR is free
         pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
         while (strcmp(shm.data->entrance[i].LPRSensor.plate, "000000")){ 
-            pthread_cond_wait(&shm.data->entrance[i].LPRSensor.LPRcond, &shm.data->entrance[0].LPRSensor.LPRmutex);
+            pthread_cond_wait(&shm.data->entrance[i].LPRSensor.LPRcond, &shm.data->entrance[i].LPRSensor.LPRmutex);
         }
         pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
         // LRP has been cleared 

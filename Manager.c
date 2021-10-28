@@ -19,16 +19,16 @@
 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 void StatusLPR();
-void *entranceSimulate(int i);
-void *entranceLPR(int i);
-void *levelLPR(int i);
-void *levelController(int i);
-void *exitLPR(int i);
-void *exitController(int i);
-void *checkTimes(int i);
-void *entranceBoomgate(int i);
-void *exitBoomgate(int i);
-void *informationSign(int i);
+void *entranceSimulate(void *arg);
+void *entranceLPR(void *arg);
+void *levelLPR(void *arg);
+void *levelController(void *arg);
+void *exitLPR(void *arg);
+void *exitController(void *arg);
+void *checkTimes(void *arg);
+void *entranceBoomgate(void *arg);
+void *exitBoomgate(void *arg);
+void *informationSign(void *arg);
 
 double generateRandom(int lower, int upper);
 double createThreads();
@@ -66,13 +66,14 @@ int main()
     readFile("plates.txt");
 
     create_shared_object_R(&shm, SHARE_NAME);
-    usleep(1000000);
+    
     createThreads();
 }
 
 // --------------------------------------- HELPER FUNCTUONS --------------------------------------- // 
 
-void *entranceLPR(int i){
+void *entranceLPR(void *arg){
+    int i = *(int*) arg;
     for (;;){ 
         // Empty LPR
         pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
@@ -81,8 +82,6 @@ void *entranceLPR(int i){
 
         // When entrance LPR is free, signal the simulator thread asking for a plate
         pthread_cond_signal(&shm.data->entrance[i].LPRSensor.LPRcond);
-
-        usleep(1000);
 
         pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
         while (!strcmp(shm.data->entrance[i].LPRSensor.plate, "000000")){
@@ -143,7 +142,7 @@ void *entranceLPR(int i){
 
             clock_t parkTime = (clock_t) generateRandom(100,10000) * 1000;
             printf("NLPR - Time spent parked will be %0.2f\n", (double)parkTime/CLOCKS_PER_SEC);
-            printf("NLPR - Car will be heading to floor %d\n", i + 1);
+            // printf("NLPR - Car will be heading to floor %d\n", i + 1);
 
             // printf("NLPR - Entrance time spent parked will be %f\n", entranceTime);
 
@@ -157,7 +156,8 @@ void *entranceLPR(int i){
     }
 }
 
-void *levelLPR(int i){
+void *levelLPR(void *arg){
+    int i = *(int*) arg;
     for (;;){ 
         while(levelQueue[i].size <= 0);
         // Empty LPR
@@ -196,7 +196,8 @@ void *levelLPR(int i){
 }
 
 
-void *exitLPR(int i){
+void *exitLPR(void *arg){
+    int i = *(int*) arg;
     for (;;){ 
         while(exitQueue[i].size <= 0);
         // Empty LPR
@@ -246,7 +247,8 @@ void *exitLPR(int i){
     }
 }
 
-void *exitController(int i){
+void *exitController(void *arg){
+    int i = *(int*) arg;
     for (;;){
         // printf("I AM IN exit contorller part 1\n");
         // Wait for exit LPR thread to signal that LPR is free
@@ -265,6 +267,7 @@ void *exitController(int i){
         pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
         strcpy(shm.data->exit[i].LPRSensor.plate, exitQueue[i].plateQueue[i]);
         pthread_mutex_unlock(&shm.data->exit[i].LPRSensor.LPRmutex);
+        
         pthread_mutex_lock(&exitQueueMutex[i]);
         popPlate(&exitQueue[i]);
         pthread_mutex_unlock(&exitQueueMutex[i]);
@@ -274,7 +277,8 @@ void *exitController(int i){
     }
 }
 
-void *levelController(int i){
+void *levelController(void *arg){
+    int i = *(int*) arg;
     for (;;){
         // Wait for manager LPR thread to signal that LPR is free
         pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
@@ -301,7 +305,8 @@ void *levelController(int i){
     }
 }
 
-void *checkTimes(int i){
+void *checkTimes(void *arg){
+    int i = *(int*) arg;
     for(;;){
         while (carStorage.size <= 0);
         for (int i = 0; i < carStorage.size; i++){
@@ -318,7 +323,8 @@ void *checkTimes(int i){
     }
 }
 
-void *entranceBoomgate(int i) {
+void *entranceBoomgate(void *arg) {
+    int i = *(int*) arg;
     for (;;){
         pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
         while(shm.data->entrance[i].gate.status == 'C') {
@@ -360,7 +366,8 @@ void *entranceBoomgate(int i) {
     }
 }
 
-void *exitBoomgate(int i) {
+void *exitBoomgate(void *arg) {
+    int i = *(int*) arg;
     for (;;){
         // Waiting for status of boom gate to change 
         pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
@@ -415,7 +422,8 @@ int determineLevel(void) {
     return level;
 }
 
-void *informationSign(int i) {
+void *informationSign(void *arg) {
+    int i = *(int*) arg;
     for (;;){
         bool allowed = false;
         char toDisplay;
@@ -426,8 +434,8 @@ void *informationSign(int i) {
         }
         pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
 
-        for (int i = 0; i < 100; i++) {
-            if (strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[i])) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
+        for (int j = 0; j < 100; j++) {
+            if (strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[j])) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
                 //printf("infoSign - Plate is NOT GABBA\n");
                 toDisplay = 'X';
                 allowed = false;
@@ -443,6 +451,7 @@ void *informationSign(int i) {
             //toDisplay = (char)determineLevel() + '0';  UNCOMMENT 
             // FOR THE MOMENT TO TEST
             toDisplay = (char)generateRandom(0, LEVELS) + '0';
+            toDisplay = '1';
             //printf("infoSign - Randomly Generated number = %c\n", toDisplay);
             if (toDisplay == '0') {
                 toDisplay = 'F';
@@ -506,43 +515,50 @@ double createThreads(){
     pthread_t exitBoomgate_thread[EXITS];
     pthread_t entranceBoomgate_thread[ENTRANCES];
     pthread_t informationSign_thread[ENTRANCES];
-        
-    for (int i = 0; i < ENTRANCES; i++){     
-        pthread_create(&entranceLPR_thread[i], NULL, entranceLPR, i);
-        pthread_create(&entranceBoomgate_thread[i], NULL, entranceBoomgate, i);
-        pthread_create(&informationSign_thread[i], NULL, informationSign, i);
+
+    int i;
+    for (i = 0; i < ENTRANCES; i++){
+        int* a = malloc(sizeof(int));
+        *a = i;
+        pthread_create(&entranceLPR_thread[i], NULL, &entranceLPR, a);   
+        pthread_create(&entranceBoomgate_thread[i],NULL, &entranceBoomgate, a);
+        pthread_create(&informationSign_thread[i],NULL, &informationSign, a);
     }
 
-    for (int i = 0; i < EXITS; i++){
+    for (i = 0; i < EXITS; i++){
+        int* b = malloc(sizeof(int));
+        *b = i;        
         plateInit(&exitQueue[i]); 
         pthread_mutex_init(&exitQueueMutex[i], NULL);
-        pthread_create(&exitLPR_thread[i], NULL, exitLPR, i);
-        pthread_create(&exitController_thread[i], NULL, exitController, i);
-        pthread_create(&exitBoomgate_thread[i], NULL, exitBoomgate, i);
+        pthread_create(&exitLPR_thread[i], NULL, &exitLPR, b);
+        pthread_create(&exitController_thread[i], NULL, &exitController, b);
+        pthread_create(&exitBoomgate_thread[i], NULL, &exitBoomgate, b);
     }
 
-    for (int i = 0; i < LEVELS; i++){
+    for (i = 0; i < LEVELS; i++){
+        int* c = malloc(sizeof(int));
+        *c = i;        
         plateInit(&levelQueue[i]);
         pthread_mutex_init(&levelQueueMutex[i], NULL);
-        pthread_create(&checkTimes_thread[i], NULL, checkTimes, i);
-        pthread_create(&levelLPR_thread[i], NULL, levelLPR, i);
-        pthread_create(&levelController_thread[i], NULL, levelController, i);
+        pthread_create(&checkTimes_thread[i], NULL, &checkTimes, c);
+        pthread_create(&levelLPR_thread[i], NULL, &levelLPR, c);
+        pthread_create(&levelController_thread[i], NULL, &levelController, c);
     }
 
 
-    for (int i = 0; i < ENTRANCES; i++){     
+    for (i = 0; i < ENTRANCES; i++){     
         pthread_join(entranceLPR_thread[i], NULL);
         pthread_join(entranceBoomgate_thread[i], NULL);
         pthread_join(informationSign_thread[i], NULL);
     }
 
-    for (int i = 0; i < EXITS; i++){
+    for (i = 0; i < EXITS; i++){
         pthread_join(exitLPR_thread[i], NULL);
         pthread_join(exitController_thread[i], NULL);
         pthread_join(exitBoomgate_thread[i], NULL);
     }
 
-    for (int i = 0; i < LEVELS; i++){
+    for (i = 0; i < LEVELS; i++){
         pthread_join(checkTimes_thread[i], NULL);
         pthread_join(levelLPR_thread[i], NULL);
         pthread_join(levelController_thread[i], NULL);

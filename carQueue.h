@@ -2,7 +2,7 @@
 #include <string.h>
 
 #define MAX_CAPACITY 1000
-#define STORAGE_CAPACITY 10
+#define STORAGE_CAPACITY 7
 
 typedef struct carQueue {
 	// The current number of elements in the vector
