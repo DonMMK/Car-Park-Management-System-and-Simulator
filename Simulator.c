@@ -13,7 +13,7 @@
 #include <ctype.h>
 #include <stdint.h>
 
-#include "carQueue.h"
+#include "carQueue.c"
 #include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"

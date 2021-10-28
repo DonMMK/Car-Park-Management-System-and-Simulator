@@ -12,8 +12,8 @@
 #include <time.h>
 
 #include "sharedMemoryOperations.h"
-#include "carQueue.h"
-#include "carStorage.h"
+#include "carQueue.c"
+#include "carStorage.c"
 
 #define SHARE_NAME "PARKING"
 
@@ -137,7 +137,9 @@ void *entranceLPR(void *arg){
             }
             // Add plate to LPR queues
             pthread_mutex_lock(&levelQueueMutex[i]);
+            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
             addPlate(&levelQueue[i], shm.data->entrance[i].LPRSensor.plate);
+            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
             pthread_mutex_unlock(&levelQueueMutex[i]);
 
             clock_t parkTime = (clock_t) generateRandom(100,10000) * 1000;
@@ -147,7 +149,9 @@ void *entranceLPR(void *arg){
             // printf("NLPR - Entrance time spent parked will be %f\n", entranceTime);
 
             pthread_mutex_lock(&carStorageMutex);
+            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
             addCar(&carStorage, shm.data->entrance[i].LPRSensor.plate, clock(), parkTime,i);
+            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
             pthread_mutex_unlock(&carStorageMutex);
         }
         else{
@@ -175,13 +179,22 @@ void *levelLPR(void *arg){
         pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
  
         // Plate recieved 
-        // printf("LLRP - After recieiving data. Plate is: %s\n", shm.data->level[0].LPRSensor.plate);
+        // printf("LLRP - After recieiving data. Plate is: %s\n", shm.data->level[i].LPRSensor.plate);
+        pthread_mutex_lock(&carStorageMutex);
+        pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
+        int returnVal = carStorage.car[findIndex(&carStorage,shm.data->level[i].LPRSensor.plate)].LPRcount;
+        pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
+        pthread_mutex_unlock(&carStorageMutex);
 
         // Check if its the cars first or second time passing through level LPR
-        if (carStorage.car[findIndex(&carStorage,shm.data->level[i].LPRSensor.plate)].LPRcount == 0) {
+        if (returnVal == 0) {
             // Send car to parking spot (Add to capacity)
             // printf("LLRP - Cars 1st time in parking lot\n");
+            pthread_mutex_lock(&carStorageMutex);
+            pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
             carStorage.car[findIndex(&carStorage,shm.data->level[i].LPRSensor.plate)].LPRcount++;
+            pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
+            pthread_mutex_unlock(&carStorageMutex);
             levelCapacity[i]++;
         }
         else {
@@ -192,6 +205,33 @@ void *levelLPR(void *arg){
             // printf("Exit queue now: %d\n", exitQueue.size);
             levelCapacity[i]--;
         }
+    }
+}
+
+void *levelController(void *arg){
+    int i = *(int*) arg;
+    for (;;){
+        // Wait for manager LPR thread to signal that LPR is free
+        pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
+        while (strcmp(shm.data->level[i].LPRSensor.plate, "000000")){ 
+            pthread_cond_wait(&shm.data->level[i].LPRSensor.LPRcond, &shm.data->level[i].LPRSensor.LPRmutex);
+        }
+        pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
+        // LRP is now clear
+
+        // Make sure plate is in queue
+        while(levelQueue[i].size <= 0);
+
+        // Copy a plate into memory
+        pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
+        pthread_mutex_lock(&levelQueueMutex[i]);
+        strcpy(shm.data->level[i].LPRSensor.plate, levelQueue[i].plateQueue[0]);
+        popPlate(&levelQueue[i]);
+        pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
+        pthread_mutex_unlock(&levelQueueMutex[i]);
+
+        // Signal manager thread with new plate
+        pthread_cond_signal(&shm.data->level[i].LPRSensor.LPRcond); 
     }
 }
 
@@ -237,11 +277,12 @@ void *exitLPR(void *arg){
         }
         // Bill the car
         pthread_mutex_lock(&carStorageMutex);
+        pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
         generateBill(carStorage.car[findIndex(&carStorage, shm.data->exit[i].LPRSensor.plate)].plate); 
-        pthread_mutex_unlock(&carStorageMutex);
+
         // Remove from system 
-        pthread_mutex_lock(&carStorageMutex);
         removeCar(&carStorage, shm.data->exit[i].LPRSensor.plate);
+        pthread_mutex_unlock(&shm.data->exit[i].LPRSensor.LPRmutex);
         pthread_mutex_unlock(&carStorageMutex);
 
     }
@@ -265,10 +306,10 @@ void *exitController(void *arg){
 
         // Copy a plate into memory
         pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
-        strcpy(shm.data->exit[i].LPRSensor.plate, exitQueue[i].plateQueue[i]);
+        pthread_mutex_lock(&exitQueueMutex[i]);
+        strcpy(shm.data->exit[i].LPRSensor.plate, exitQueue[i].plateQueue[0]);
         pthread_mutex_unlock(&shm.data->exit[i].LPRSensor.LPRmutex);
         
-        pthread_mutex_lock(&exitQueueMutex[i]);
         popPlate(&exitQueue[i]);
         pthread_mutex_unlock(&exitQueueMutex[i]);
 
@@ -277,49 +318,23 @@ void *exitController(void *arg){
     }
 }
 
-void *levelController(void *arg){
-    int i = *(int*) arg;
-    for (;;){
-        // Wait for manager LPR thread to signal that LPR is free
-        pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
-        while (strcmp(shm.data->level[i].LPRSensor.plate, "000000")){ 
-            pthread_cond_wait(&shm.data->level[i].LPRSensor.LPRcond, &shm.data->level[i].LPRSensor.LPRmutex);
-        }
-        pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
-        // LRP is now clear
-
-        // Make sure plate is in queue
-        while(levelQueue[i].size <= 0);
-
-        // Copy a plate into memory
-        pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
-        strcpy(shm.data->level[i].LPRSensor.plate, levelQueue[i].plateQueue[i]);
-        pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
-        
-        pthread_mutex_lock(&levelQueueMutex[i]);
-        popPlate(&levelQueue[i]);
-        pthread_mutex_unlock(&levelQueueMutex[i]);
-
-        // Signal manager thread with new plate
-        pthread_cond_signal(&shm.data->level[i].LPRSensor.LPRcond); 
-    }
-}
-
 void *checkTimes(void *arg){
     int i = *(int*) arg;
     for(;;){
         while (carStorage.size <= 0);
-        for (int i = 0; i < carStorage.size; i++){
+        pthread_mutex_lock(&carStorageMutex);
+        for (i = 0; i < carStorage.size; i++){
             if (carStorage.car[i].exitStatus != true && (double) carStorage.car[i].entranceTime + carStorage.car[i].parkTime <= (double) clock()){
                 // printf("end time is %0.2f and current time is %f\n",exitTime,currentTime);
                 // printf("exit time of %d is larger than %d \n", exitTime, currentTime);
                 // wait with car somewhere and then get it back in level queue when done queue
+                carStorage.car[i].exitStatus = true;
                 pthread_mutex_lock(&levelQueueMutex[carStorage.car[i].level]);
                 addPlate(&levelQueue[carStorage.car[i].level],carStorage.car[i].plate);
                 pthread_mutex_unlock(&levelQueueMutex[carStorage.car[i].level]);
-                carStorage.car[i].exitStatus = true;
             }
         }
+        pthread_mutex_unlock(&carStorageMutex);
     }
 }
 
@@ -435,7 +450,10 @@ void *informationSign(void *arg) {
         pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
 
         for (int j = 0; j < 100; j++) {
-            if (strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[j])) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
+            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            int returnVal = strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[j]);
+            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            if (returnVal) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
                 //printf("infoSign - Plate is NOT GABBA\n");
                 toDisplay = 'X';
                 allowed = false;
@@ -445,6 +463,7 @@ void *informationSign(void *arg) {
                 allowed = true;
                 break;
             }
+            
         }
 
         if (allowed) {

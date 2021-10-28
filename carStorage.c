@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
- 
+#include <time.h>
+#include <stdbool.h> 
+
 #define LEVELS 5
 #define CAPACITY 20
 #define MAX_CARPARK LEVELS * CAPACITY
@@ -124,20 +126,25 @@ void printCarList(carStorage_t* carStorage){
 //     carStorage_t carStorage;
 //     storageInit(&carStorage);
 //     printf("Adding 4 plates...\n");
-//     addCar(&carStorage, "jactoe", 1000, 0);
-//     addCar(&carStorage, "jactoa", 950, 1);
-//     addCar(&carStorage, "jactor", 923, 40);
-//     addCar(&carStorage, "penisl", 5, 2);    
-//     printCarList(&carStorage);
-//     printf("\n");
+//     addCar(&carStorage, "jactoe", 1000, 10, 1);
+//     addCar(&carStorage, "jactoa", 950, 10, 2);
+//     addCar(&carStorage, "jactor", 923, 10, 3);
+//     addCar(&carStorage, "penisl", 5, 10, 4);    
+//     // printCarList(&carStorage);
+//     // printf("\n");
 
-//     printf("Removing a plate 'jactor'...\n");
-//     removeCar(&carStorage, "jactor");
-//     printCarList(&carStorage);
-//     printf("\n");
+//     // printf("Removing a plate 'jactor'...\n");
+//     // removeCar(&carStorage, "jactor");
+//     // printCarList(&carStorage);
+//     // printf("\n");
+//     int index = findIndex(&carStorage, "jactor");
+//     printf("Index of plate before removal is: %d\n", index);
+
 
 //     printf("Removing a plate 'jacktoa'...\n");
 //     removeCar(&carStorage, "jactoa");
 //     printCarList(&carStorage);
 //     printf("\n");
+//     index = findIndex(&carStorage, "jactor");
+//     printf("Index of plate before removal is: %d\n", index);
 // }
