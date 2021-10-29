@@ -28,15 +28,12 @@ void *exitController(void *arg);
 void *checkTimes(void *arg);
 void *entranceBoomgate(void *arg);
 void *exitBoomgate(void *arg);
-void *informationSign(void *arg);
+void *statusDisplay(void *args);
 
 double generateRandom(int lower, int upper);
 double createThreads();
 void generateBill(char*);
 void readFile(char *filename);
-
-
-int determineLevel(void);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 shared_memory_t shm;
@@ -47,6 +44,7 @@ carStorage_t carStorage;
 pthread_mutex_t levelQueueMutex[LEVELS];
 pthread_mutex_t exitQueueMutex[EXITS];
 pthread_mutex_t carStorageMutex;
+pthread_mutex_t levelCapacityMutex[LEVELS];
 
 int levelCapacity[LEVELS];
 char allowedPlates[100][7];
@@ -61,6 +59,10 @@ int main()
     // Initialise random seed
     time_t t;
     srand((unsigned) time(&t));
+
+    for (int i = 0; i < LEVELS; i++){
+        levelCapacity[i] = 0;
+    }
 
     // Read the number plates 
     readFile("plates.txt");
@@ -92,30 +94,46 @@ void *entranceLPR(void *arg){
         // printf("NLRP - After recieiving data. Plate is: %s\n", shm.data->entrance[0].LPRSensor.plate);
 
         // Information sign stuff here. For now, send to level 1.
+        bool allowed = false;
+        char toDisplay;
+
+        for (int j = 0; j < 100; j++) {
+            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            int returnVal = strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[j]);
+            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            if (returnVal != 0) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
+                //printf("infoSign - Plate is NOT GABBA\n");
+                toDisplay = 'X';
+                allowed = false;
+            }    
+            else {          
+                //printf("infoSign - Plate is in fact GABBA\n");
+                allowed = true;
+                break;
+            }
             
-        // Set information sign display to 0 to show its ready
-        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
-        shm.data->entrance[i].informationSign.display = 'O';
-        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
-
-        // Signal info sign to change value on display
-        pthread_cond_signal(&shm.data->entrance[i].informationSign.IScond);
-        
-        // Wait for response from information sign
-        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
-        while (shm.data->entrance[i].informationSign.display == 'O') {
-            pthread_cond_wait(&shm.data->entrance[i].informationSign.IScond, &shm.data->entrance[i].informationSign.ISmutex);
         }
+
+        if (allowed) {
+            pthread_mutex_lock(&carStorageMutex);
+            int currentCapacity = carStorage.size;
+            pthread_mutex_unlock(&carStorageMutex);
+            if (currentCapacity >= CAPACITY * LEVELS){
+                toDisplay = 'F';
+            }
+            else{
+                toDisplay = generateRandom(0,4) + '0';
+            }
+        }
+        printf("The status of the sign is one of these: %c\n", toDisplay);
+
+        // Set information sign display to 'toDisplay' to show its ready
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = toDisplay;
         pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
-
-        // printf("NLPR - Value shown on display is %c\n", shm.data->entrance[0].informationSign.display);
-
-        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);       
-        statusDisp[i] = shm.data->entrance[i].informationSign.display;
-        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
-
+        
         // NEED STATEMENT HERE TO CHECK WHAT THE DISPLAY CHARACTER IS AND WHETHER TO SEND INTO CARPARK OR TO YEET
-        if (statusDisp[i] != 'F' && statusDisp[i] != 'X'){
+        if (toDisplay != 'F' && toDisplay != 'X'){
             // Boomgate open/closed? Timings 
             pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
             entrDisplay[i] = shm.data->entrance[i].gate.status;
@@ -182,28 +200,47 @@ void *levelLPR(void *arg){
         // printf("LLRP - After recieiving data. Plate is: %s\n", shm.data->level[i].LPRSensor.plate);
         pthread_mutex_lock(&carStorageMutex);
         pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
-        int returnVal = carStorage.car[findIndex(&carStorage,shm.data->level[i].LPRSensor.plate)].LPRcount;
+        char plate[7];
+        strcpy(plate,shm.data->level[i].LPRSensor.plate);
+        int index = findIndex(&carStorage,plate);
+        int returnVal = carStorage.car[index].LPRcount;
         pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
         pthread_mutex_unlock(&carStorageMutex);
 
         // Check if its the cars first or second time passing through level LPR
         if (returnVal == 0) {
-            // Send car to parking spot (Add to capacity)
-            // printf("LLRP - Cars 1st time in parking lot\n");
-            pthread_mutex_lock(&carStorageMutex);
-            pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
-            carStorage.car[findIndex(&carStorage,shm.data->level[i].LPRSensor.plate)].LPRcount++;
-            pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
-            pthread_mutex_unlock(&carStorageMutex);
-            levelCapacity[i]++;
+            pthread_mutex_lock(&levelCapacityMutex[i]);
+            int currentLevelCap = levelCapacity[i];
+            pthread_mutex_unlock(&levelCapacityMutex[i]);
+            if (currentLevelCap < CAPACITY) {
+                // Wait 10ms to drive to parking spot before triggering LPR
+                usleep(10000);
+                // Send car to parking spot (Add to level counter and capacity)
+                pthread_mutex_lock(&carStorageMutex);
+                pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
+                index = findIndex(&carStorage,shm.data->level[i].LPRSensor.plate);
+                carStorage.car[index].LPRcount = 1;
+                pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
+                pthread_mutex_unlock(&carStorageMutex);
+                pthread_mutex_lock(&levelCapacityMutex[i]);
+                levelCapacity[i]++;
+                pthread_mutex_unlock(&levelCapacityMutex[i]);
+            }
+            else {
+                // As there is no more information signs, the car will wander around the park until it fits somewhere
+                addPlate(&levelQueue[(int)generateRandom(0,4)],plate);
+            }
         }
         else {
-            // printf("LLRP - CAR %s LEAVING THE PARKING LOT\n", shm.data->level[0].LPRSensor.plate);
             pthread_mutex_lock(&exitQueueMutex[i]);
+            pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
             addPlate(&exitQueue[i],shm.data->level[i].LPRSensor.plate);
+            pthread_mutex_unlock(&shm.data->level[i].LPRSensor.LPRmutex);
             pthread_mutex_unlock(&exitQueueMutex[i]);
             // printf("Exit queue now: %d\n", exitQueue.size);
+            pthread_mutex_lock(&levelCapacityMutex[i]);
             levelCapacity[i]--;
+            pthread_mutex_unlock(&levelCapacityMutex[i]);
         }
     }
 }
@@ -313,6 +350,9 @@ void *exitController(void *arg){
         popPlate(&exitQueue[i]);
         pthread_mutex_unlock(&exitQueueMutex[i]);
 
+        // Wait 10ms before triggering exit LPR
+        usleep(10000);
+
         // Signal manager thread with new plate
         pthread_cond_signal(&shm.data->exit[i].LPRSensor.LPRcond);
     }
@@ -421,73 +461,6 @@ void *exitBoomgate(void *arg) {
     }
 }
 
-// // Determines a level for the car to go to
-int determineLevel(void) {
-    int level = 0;
-    for (int i = 1; i <= LEVELS; i++) {
-        if (levelCapacity[i] < CAPACITY) {
-            level = i;
-            break;
-            // Increment level capacity
-        }
-        else {
-            level = 0; // in another func, if level = 0 display F?
-        }
-    }
-    return level;
-}
-
-void *informationSign(void *arg) {
-    int i = *(int*) arg;
-    for (;;){
-        bool allowed = false;
-        char toDisplay;
-        // Wait for information sign to be signalled
-        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
-        while (shm.data->entrance[i].informationSign.display != 'O') {
-            pthread_cond_wait(&shm.data->entrance[i].informationSign.IScond, &shm.data->entrance[i].informationSign.ISmutex);
-        }
-        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
-
-        for (int j = 0; j < 100; j++) {
-            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
-            int returnVal = strcmp(shm.data->entrance[i].LPRSensor.plate, allowedPlates[j]);
-            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
-            if (returnVal) { // if plate in LPR or entrance queue?? is not in allowed plates then display 'X' and yeet the plate
-                //printf("infoSign - Plate is NOT GABBA\n");
-                toDisplay = 'X';
-                allowed = false;
-            }    
-            else {          
-                //printf("infoSign - Plate is in fact GABBA\n");
-                allowed = true;
-                break;
-            }
-            
-        }
-
-        if (allowed) {
-            //toDisplay = (char)determineLevel() + '0';  UNCOMMENT 
-            // FOR THE MOMENT TO TEST
-            toDisplay = (char)generateRandom(0, LEVELS) + '0';
-            toDisplay = '1';
-            //printf("infoSign - Randomly Generated number = %c\n", toDisplay);
-            if (toDisplay == '0') {
-                toDisplay = 'F';
-            }
-        }
-
-        // Set information sign display to 'toDisplay' to show its ready
-        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
-        shm.data->entrance[i].informationSign.display = toDisplay;
-        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
-
-        //Signal entrance LPR to say that we have changed the display
-        pthread_cond_signal(&shm.data->entrance[i].informationSign.IScond);
-    }
-
-}
-
 void generateBill(char* numPlate) {
     FILE *billingFile;
     bill = (double)(clock() - carStorage.car[findIndex(&carStorage,numPlate)].entranceTime)/ CLOCKS_PER_SEC * 50; // FOR NOW
@@ -522,7 +495,10 @@ double generateRandom(int lower, int upper)
 }
 
 double createThreads(){
-    pthread_mutex_init(&carStorageMutex, NULL);
+    pthread_mutexattr_t attr_m;
+    pthread_mutexattr_init(&attr_m);
+    pthread_mutexattr_setpshared(&attr_m, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&carStorageMutex, &attr_m);
     storageInit(&carStorage);
 
     pthread_t entranceLPR_thread[ENTRANCES];
@@ -534,14 +510,15 @@ double createThreads(){
     pthread_t exitBoomgate_thread[EXITS];
     pthread_t entranceBoomgate_thread[ENTRANCES];
     pthread_t informationSign_thread[ENTRANCES];
+    pthread_t statusDisp_thread;
 
+    pthread_create(&statusDisp_thread, NULL, &statusDisplay, NULL);
     int i;
     for (i = 0; i < ENTRANCES; i++){
         int* a = malloc(sizeof(int));
         *a = i;
         pthread_create(&entranceLPR_thread[i], NULL, &entranceLPR, a);   
         pthread_create(&entranceBoomgate_thread[i],NULL, &entranceBoomgate, a);
-        pthread_create(&informationSign_thread[i],NULL, &informationSign, a);
     }
 
     for (i = 0; i < EXITS; i++){
@@ -559,16 +536,16 @@ double createThreads(){
         *c = i;        
         plateInit(&levelQueue[i]);
         pthread_mutex_init(&levelQueueMutex[i], NULL);
+        pthread_mutex_init(&levelCapacityMutex[i], NULL);
         pthread_create(&checkTimes_thread[i], NULL, &checkTimes, c);
         pthread_create(&levelLPR_thread[i], NULL, &levelLPR, c);
         pthread_create(&levelController_thread[i], NULL, &levelController, c);
     }
 
-
+    pthread_join(statusDisp_thread, NULL);
     for (i = 0; i < ENTRANCES; i++){     
         pthread_join(entranceLPR_thread[i], NULL);
         pthread_join(entranceBoomgate_thread[i], NULL);
-        pthread_join(informationSign_thread[i], NULL);
     }
 
     for (i = 0; i < EXITS; i++){
@@ -593,5 +570,72 @@ void readFile(char *filename){
     while (fgets(allowedPlates[i], 10, file)) {
         allowedPlates[i][strlen(allowedPlates[i]) - 1] = '\0';
         i++;
+    }
+}
+
+void *statusDisplay(void *args) {
+    system("clear");
+    // Clear screen to prevent scrolling
+    char entrancePlateLPR[8];
+    char entranceGateStatus;
+    char entranceInfoSign;
+    char exitPlateLPR[8];
+    char exitGateStatus;
+    char levelFireAlarmStatus;
+
+    //usleep(1000000);
+    for (;;) {
+        // Display current state of each entrance LPR, boomgate and info sign
+        // Grab entrance LPR plate
+        for (int i =0; i < ENTRANCES; i++) {
+            pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            strcpy(entrancePlateLPR, shm.data->entrance[i].LPRSensor.plate);
+            pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+            // Grab entrance LPR gate status
+            pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
+            entranceGateStatus = shm.data->entrance[i].gate.status;
+            pthread_mutex_unlock(&shm.data->entrance[i].gate.gatemutex);
+            // Grab entrance LPR gate status
+            pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+            entranceInfoSign = shm.data->entrance[i].informationSign.display;
+            pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+
+            // Print out the read values
+            printf("----------------------------Entrance %d information----------------------------\n", i+1);
+            //printCharArray(entrancePlateLPR);
+            printf("LPR plate: %s \n", entrancePlateLPR);
+            printf("Boom gate status: %c\n", entranceGateStatus);
+            printf("Information display: %c\n", entranceInfoSign); //jjjjjljkkk
+        }
+        // Display current state of each exit LPR, boomgate
+        // Grab the exit LPR plate
+        for (int i =0; i < EXITS; i++) {
+            pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
+            strcpy(exitPlateLPR, shm.data->exit[i].LPRSensor.plate);
+            pthread_mutex_unlock(&shm.data->exit[i].LPRSensor.LPRmutex);
+            // Grab the exit LPR gate status
+            pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
+            exitGateStatus = shm.data->exit[i].gate.status;
+            pthread_mutex_unlock(&shm.data->exit[i].gate.gatemutex);
+
+            printf("------------------------------Exit %d information------------------------------\n", i+1);
+            printf("LPR plate: %s\n", exitPlateLPR);
+            printf("Boom gate status: %c\n", exitGateStatus);
+        }
+        // Display current state of each temperature sensor 
+        // Grab temp sensor data
+        for (int i =0; i < LEVELS; i++) {
+            printf("-----------------------------Level %d information------------------------------\n", i+1);
+            printf("Temperature Sensor status %c\n", shm.data->level[i].fireAlarm);
+            // Display Number of vehicles  and  maximum  capacity  on  each  level
+            printf("Currently %d cars on level %d, which has a maximum capacity of %d\n", levelCapacity[i], i+1, CAPACITY);
+            // use levelCapacity or levelQueue[i].size? in printf
+        }
+        printf("------------------------------------------------------------\n");         
+        printf("Total billing recorded by the manager thus far: $%.2f\n");//, totalRevenue);
+        //printf("------------------------------------------------------------\n");
+
+        usleep(50000);
+        system("clear");
     }
 }

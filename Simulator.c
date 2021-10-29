@@ -17,7 +17,7 @@
 #include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
-#define CAR_LIMIT 5
+#define CAR_LIMIT 99
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
@@ -90,7 +90,7 @@ void *spawnCar(void *args) {
     
     for (int i = 0;i < CAR_LIMIT;i++){
         // Generate numberplate (from list/random)
-        plate = generatePlate(100);
+        plate = generatePlate(80);
         selector++;
         // printf("S - Car has plate number: %s\n", plate); 
 
@@ -125,8 +125,13 @@ void *entranceSimulate(void *arg) {
 
         // Copy a plate into memory
         pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+        pthread_mutex_lock(&entranceQueueMutex[i]);
         strcpy(shm.data->entrance[i].LPRSensor.plate, entranceQueue[i].plateQueue[0]);
+        pthread_mutex_unlock(&entranceQueueMutex[i]);
         pthread_mutex_unlock(&shm.data->entrance[i].LPRSensor.LPRmutex);
+
+        // Wait 2ms before triggering LPR
+        usleep(2000);
 
         // Signal manager thread with new plate
         pthread_cond_signal(&shm.data->entrance[i].LPRSensor.LPRcond);

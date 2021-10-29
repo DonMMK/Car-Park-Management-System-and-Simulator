@@ -5,7 +5,7 @@
 
 #define LEVELS 5
 #define CAPACITY 20
-#define MAX_CARPARK LEVELS * CAPACITY
+#define MAX_CARPARK 100
 #define STORAGE_CAPACITY 7
 
 typedef struct car {
@@ -56,11 +56,12 @@ void storageInit(carStorage_t *carStorage){
 
 void addCar(carStorage_t *carStorage, char *plate, clock_t entranceTime, clock_t parkTime, int level){
     int old_size = carStorage->size;
-    strcpy(carStorage->car[old_size].plate, plate);
+    memcpy(carStorage->car[old_size].plate, plate, 7);
     carStorage->car[old_size].entranceTime = entranceTime;
     carStorage->car[old_size].parkTime = parkTime;
     carStorage->car[old_size].level = level;
     carStorage->car[old_size].exitStatus = false;
+    carStorage->car[old_size].LPRcount = 0;
     carStorage->size = old_size + 1;
 }
 
@@ -70,7 +71,7 @@ void removeCar(carStorage_t* carStorage, char *plate){
     int loc;
 
     for (int i = 0; i < old_size; i++){
-        strcpy(old_car[i].plate, carStorage->car[i].plate);
+        memcpy(old_car[i].plate, carStorage->car[i].plate, 7);
         old_car[i].entranceTime = carStorage->car[i].entranceTime;
         old_car[i].parkTime = carStorage->car[i].parkTime;
         old_car[i].level = carStorage->car[i].level;
@@ -79,14 +80,23 @@ void removeCar(carStorage_t* carStorage, char *plate){
     }
 
     for (int i = 0; i < old_size; i++){
-        if (strcmp(carStorage->car[i].plate, plate) == 0){
+        if (memcmp(carStorage->car[i].plate, plate, 7) == 0){
             loc = i;
             break;
         }
     }
 
+    for (int i = 0; i < loc; i++){
+        memcpy(carStorage->car[i].plate, old_car[i].plate,7);
+        carStorage->car[i].entranceTime = old_car[i].entranceTime;
+        carStorage->car[i].parkTime = old_car[i].parkTime;
+        carStorage->car[i].level = old_car[i].level;
+        carStorage->car[i].exitStatus = old_car[i].exitStatus;
+        carStorage->car[i].LPRcount = old_car[i].LPRcount;
+    }
+
     for (int i = loc; i < old_size - 1; i++){
-        strcpy(carStorage->car[i].plate, old_car[i + 1].plate);
+        memcpy(carStorage->car[i].plate, old_car[i + 1].plate,7);
         carStorage->car[i].entranceTime = old_car[i + 1].entranceTime;
         carStorage->car[i].parkTime = old_car[i + 1].parkTime;
         carStorage->car[i].level = old_car[i + 1].level;
@@ -98,17 +108,14 @@ void removeCar(carStorage_t* carStorage, char *plate){
 }
 
 int findIndex(carStorage_t* carStorage, char *plate){
-    int old_size = carStorage->size;
-    int loc;
-
-    for (int i = 0; i < old_size; i++){
-        if (strcmp(carStorage->car[i].plate, plate) == 0){
-            loc = i;
-            break;
+    int index;
+    for (int i = 0; i < carStorage->size; i++){
+        if (memcmp(carStorage->car[i].plate, plate,7) == 0){
+            index = i;
+            return index;
         }
     }
-
-    return loc;
+    // printf("you missed me :((\n");
 }
 
 void printCarList(carStorage_t* carStorage){

@@ -3,7 +3,6 @@
 #define ENTRANCES 5
 #define EXITS 5
 #define LEVELS 5
-#define CAPACITY 20
 
 /**
  * LPR sensors
