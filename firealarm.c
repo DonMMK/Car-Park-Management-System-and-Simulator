@@ -146,15 +146,12 @@ void fixedTemp(double arr[][ARSIZE])
 // the temperature is considered to be growing at a fast enough rate that there must be a fire.
 void RateofRise(double arr[][30]){
     int i = 0;
-    int cnt = 0;
     for (i = 0; i < 30; i++){
         if ( abs ( arr[0][i] - arr[0][i+1]) >= 8){
-            cnt++;
+            ALARM = 1;;
         }
     }
-    if (cnt > 8){
-        ALARM = 1;
-    }
+
 }
 
 
