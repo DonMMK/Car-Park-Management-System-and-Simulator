@@ -20,8 +20,8 @@ Write your code in this editor and press "Run" button to compile and execute it.
 #include <stdint.h>
 #include <unistd.h>
 
-//#include "carQueue.h"
-//#include "sharedMemoryOperations.h"
+#include "carQueue.c"
+#include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
 #define LOWER 30
