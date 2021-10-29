@@ -7,7 +7,7 @@
 #define LOWER 30
 #define UPPER 40
 #define LEVELS 5
-#define ARSIZE 8
+#define ARSIZE 30
 
 
 //HELPER FUNCTIONS
