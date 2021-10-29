@@ -1,247 +1,140 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-//**************************************************************************
-//remove goto statements
-//put limits upper limits on all for loops
-//no more than about 60 lines of code per function
-//^^^https://web.eecs.umich.edu/~imarkov/10rules.pdf
-//**************************************************************************
 
 
-//*********************CHANGE LOG********************************************
-//GOTO was removed
-//compare fucntion was changed and isInt method was added
-
-
-int shm_fd;
-volatile void *shm;
-
-int alarm_active = 0;
-pthread_mutex_t alarm_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t alarm_condvar = PTHREAD_COND_INITIALIZER;
-
+#define LOWER 30
+#define UPPER 40
 #define LEVELS 5
-#define ENTRANCES 5
-#define EXITS 5
-
-#define MEDIAN_WINDOW 5
-#define TEMPCHANGE_WINDOW 30
-
-#define LOOPLIM 1000
+#define ARSIZE 8
 
 
-struct boomgate {
-	pthread_mutex_t m;
-	pthread_cond_t c;
-	char s;
-};
-struct parkingsign {
-	pthread_mutex_t m;
-	pthread_cond_t c;
-	char display;
-};
+//HELPER FUNCTIONS
+int16_t tempGen(int lower, int upper);
+int usleep(int arg);
+double smoothedData(double arr[][ARSIZE], int i);
+void fixedTemp(double arr[][ARSIZE]);
 
-struct tempnode {
-	int temperature;
-	struct tempnode *next;
-};
 
-struct tempnode *deletenodes(struct tempnode *templist, int after)
+//GLOBAL
+int ALARM = 0;
+
+//MAIN
+int main()
 {
-	if (templist->next) {
-		templist->next = deletenodes(templist->next, after - 1);
-	}
-	if (after <= 0) {
-		free(templist);
-		return NULL;
-	}
-	return templist;
+    //declare data
+    //init all to 0
+	double rawL1[2][ARSIZE] = {0};
+	double rawL2[2][ARSIZE] = {0};
+	double rawL3[2][ARSIZE] = {0};
+	double rawL4[2][ARSIZE] = {0};
+	double rawL5[2][ARSIZE] = {0};
+
+    //finite loop for testing
+    int i = 0;
+    while(i < 70)
+    {
+        //get temp data
+        //index always between 0 - 29
+        rawL1[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        rawL2[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        rawL3[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        rawL4[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        rawL5[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+            
+        //check if possible to smooth data
+        //need more than 5 entries
+        if (i > 4)
+        {
+            double L1 = smoothedData(rawL1, i % ARSIZE);
+            rawL1[1][i] = L1;
+
+            //test for fire
+            fixedTemp(rawL1);           
+            //fixedTemp(rawL2);
+            //fixedTemp(rawL3);
+            //fixedTemp(rawL4);
+            //fixedTemp(rawL5);
+            
+        }
+
+        i++;
+        usleep(2000);
+        
+        if (ALARM == 1)
+        {
+            break;
+        }
+    }
+    
+    //testing 
+    for (int i = 0; i < ARSIZE; i++)
+    {
+        printf("%d. %f\n",i + 1,rawL1[0][i]);
+    }
+    
+    //testing
+    printf("--------------------\n");
+    for (int i = 0; i < ARSIZE; i++)
+    {
+        printf("%d. %f\n",i+1,rawL1[1][i]);
+    }
+    
+    //OPEN ALL GATES
+    if (ALARM == 1)
+    {
+        printf("ALARM TRIPPED");
+    }
+    return 0;
 }
 
-int compare(const void *first, const void *second)
+//generates temp values randomly with upper and lower limits
+int16_t tempGen(int lower, int upper)
 {
-	if (isInt(first) == 1 & isInt(second) == 1)
+    int16_t num = (rand() %  (upper - lower + 1)) + lower;
+	return num;    
+}
+
+double smoothedData(double arr[][ARSIZE], int index)
+{
+    //sum the previous 5 values of array
+    int sum = 0;
+    for (int i = index; index - 5 < i ; i--)
+    {
+        sum += arr[0][i];
+    }
+    
+    //average the values
+    double ret = sum / 5.00;
+    return ret;
+}
+
+//tests if 90% of readings are over 58 degrees
+//if true actives firealarm
+void fixedTemp(double arr[][ARSIZE])
+{
+    //90% of 30 is 27, if see 27 readings over 58 degrees activate fire alarm
+	int cnt = 0;
+	for (int i = 0; i < ARSIZE; i++)
 	{
-		return *((const int *)first) - *((const int *)second);
+	    //testing with raw data for now
+		if (arr[0][i] > 57)
+		{
+			cnt++;
+		}
 	}
-}
-
-int isInt(void *in)
-{
-	int ret = 0;
-	if (isdigit(in) != 0)
+		
+	//is 27?
+	if (cnt > 26)
 	{
-		ret = 1;
-	}
-	return ret;
-}
+	    //set off alarm
+		ALARM = 1;
+	}	
+}	
 
-void tempmonitor(int level)
-{
-	struct tempnode *templist = NULL, *newtemp, *medianlist = NULL, *oldesttemp;
-	int count, addr, temp, mediantemp, hightemps;
-	
-	for (int i = 0; i < LOOPLIM; i++) {
-		// Calculate address of temperature sensor
-		temp = *((int16_t *)(shm + 0150 * level + 2496));
-		
-		// Add temperature to beginning of linked list
-		newtemp = malloc(sizeof(struct tempnode));
-		newtemp->temperature = temp;
-		newtemp->next = templist;
-		templist = newtemp;
-		
-		// Delete nodes after 5th
-		deletenodes(templist, MEDIAN_WINDOW);
-		
-		// Count nodes
-		count = 0;
-		for (struct tempnode *t = templist; t != NULL; t = t->next) {
-			count++;
-		}
-		
-		if (count == MEDIAN_WINDOW) { // Temperatures are only counted once we have 5 samples
-			int *sorttemp = malloc(sizeof(int) * MEDIAN_WINDOW);
-			count = 0;
-			for (struct tempnode *t = templist; t != NULL; t = t->next) {
-				sorttemp[count++] = t->temperature;
-			}
-			qsort(sorttemp, MEDIAN_WINDOW, sizeof(int), compare);
-			mediantemp = sorttemp[(MEDIAN_WINDOW - 1) / 2];
-			
-			// Add median temp to linked list
-			newtemp = malloc(sizeof(struct tempnode));
-			newtemp->temperature = mediantemp;
-			newtemp->next = medianlist;
-			medianlist = newtemp;
-			
-			// Delete nodes after 30th
-			deletenodes(medianlist, TEMPCHANGE_WINDOW);
-			
-			// Count nodes
-			count = 0;
-			hightemps = 0;
-			
-			for (struct tempnode *t = medianlist; t != NULL; t = t->next) {
-				// Temperatures of 58 degrees and higher are a concern
-				if (t->temperature >= 58) hightemps++;
-				// Store the oldest temperature for rate-of-rise detection
-				oldesttemp = t;
-				count++;
-			}
-			
-			if (count == TEMPCHANGE_WINDOW) {
-				// If 90% of the last 30 temperatures are >= 58 degrees, considered a high temperature
-				if (hightemps >= TEMPCHANGE_WINDOW * 0.9)
-					alarm_active = 1;
-				
-				// If the newest temp is >= 8 degrees higher than the oldest
-				// temp (out of the last 30), this is a high rate-of-rise, Raise the alarm
-				if (templist->temperature - oldesttemp->temperature >= 8)
-					alarm_active = 1;
-			}
-		}
-		LoopTerm(i);
-		usleep(2000);		
-	}
-}
 
-void *openboomgate(void *arg)
-{
-	struct boomgate *bg = arg;
-	pthread_mutex_lock(&bg->m);
-	for (int i = 0; i < LOOPLIM; i++) {
-		if (bg->s == 'C') {
-			bg->s = 'R';
-			pthread_cond_broadcast(&bg->c);
-		}
-		if (bg->s == 'O') {
-		}
-		pthread_cond_wait(&bg->c, &bg->m);
-	}
-	pthread_mutex_unlock(&bg->m);
-	
-}
 
-int main() {
-	shm_fd = shm_open("PARKING", O_RDWR, 0);
-	shm = (volatile void *) mmap(0, 2920, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-	
-	pthread_t *threads = malloc(sizeof(pthread_t) * LEVELS);
-	
-	for (int i = 0; i < LEVELS; i++) {
-		pthread_create(threads + i, NULL, (void *(*)(void *)) tempmonitor, (void *)i);
-	}
-	for (int i = 0; i < LOOPLIM; i++) {
-		if (alarm_active) {
-				fprintf(stderr, "*** ALARM ACTIVE ***\n");
-				break;
-		}
-		LoopTerm(i);
-		usleep(1000);
-	}
-	
-	// Handle the alarm system and open boom gates
-	// Activate alarms on all levels
-	for (int i = 0; i < LEVELS; i++) {
-		int addr = 0150 * i + 2498;
-		char *alarm_trigger = (char *)shm + addr;
-		*alarm_trigger = 1;
-	}
-	
-	// Open up all boom gates
-	pthread_t *boomgatethreads = malloc(sizeof(pthread_t) * (ENTRANCES + EXITS));
-	for (int i = 0; i < ENTRANCES; i++) {
-		int addr = 288 * i + 96;
-		volatile struct boomgate *bg = shm + addr;
-		pthread_create(boomgatethreads + i, NULL, openboomgate, bg);
-	}
-	for (int i = 0; i < EXITS; i++) {
-		int addr = 192 * i + 1536;
-		volatile struct boomgate *bg = shm + addr;
-		pthread_create(boomgatethreads + ENTRANCES + i, NULL, openboomgate, bg);
-	}
-	
-	// Show evacuation message on an endless loop
-	for (int i = 0; i < LOOPLIM; i++) {
-		char *evacmessage = "EVACUATE ";
-		for (char *p = evacmessage; *p != '\0'; p++) {
-			for (int i = 0; i < ENTRANCES; i++) {
-				int addr = 288 * i + 192;
-				volatile struct parkingsign *sign = shm + addr;
-				pthread_mutex_lock(&sign->m);
-				sign->display = *p;
-				pthread_cond_broadcast(&sign->c);
-				pthread_mutex_unlock(&sign->m);
-			}
-			usleep(20000);
-		}
-		LoopTerm(i);
-	}
-	
-	for (int i = 0; i < LEVELS; i++) {
-		pthread_join(threads[i], NULL);
-	}
-	
-	munmap((void *)shm, 2920);
-	close(shm_fd);
-}
 
-//exits the system if the loop counter variable exceeds the loop 
-// limit of the program
-void LoopTerm(int i)
-{
-	if (i >= LOOPLIM)
-	{
-		printf("ERROR: Loop Limit Exceeded, Program Will CLose");
-		exit(1);
-	}
-}
+
 
