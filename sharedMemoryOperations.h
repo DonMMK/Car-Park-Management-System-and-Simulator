@@ -225,6 +225,8 @@ void initialiseSharedMemory(shared_memory_t shm){
         // Intilise Mutexs and Condition variables for LPR sensors
         pthread_mutex_init(&shm.data->level[i].LPRSensor.LPRmutex, &attr_m);
         pthread_cond_init(&shm.data->level[i].LPRSensor.LPRcond, &attr_c);
+        shm.data->level[i].fireAlarm = '0';
+        shm.data->level[i].tempSensor = 24;
 
         // Initiliase number plate to be xxxxxx
         strcpy(shm.data->level[i].LPRSensor.plate, "xxxxxx");

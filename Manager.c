@@ -52,6 +52,7 @@ char statusDisp[ENTRANCES];
 char exitDisplay[EXITS];
 char entrDisplay[ENTRANCES];
 double bill;
+double moneyEarned;
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
@@ -63,6 +64,7 @@ int main()
     for (int i = 0; i < LEVELS; i++){
         levelCapacity[i] = 0;
     }
+    moneyEarned = 0;
 
     // Read the number plates 
     readFile("plates.txt");
@@ -125,7 +127,7 @@ void *entranceLPR(void *arg){
                 toDisplay = generateRandom(0,4) + '0';
             }
         }
-        printf("The status of the sign is one of these: %c\n", toDisplay);
+        // printf("The status of the sign is one of these: %c\n", toDisplay);
 
         // Set information sign display to 'toDisplay' to show its ready
         pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
@@ -228,7 +230,9 @@ void *levelLPR(void *arg){
             }
             else {
                 // As there is no more information signs, the car will wander around the park until it fits somewhere
+                pthread_mutex_lock(&levelQueue[i]);
                 addPlate(&levelQueue[(int)generateRandom(0,4)],plate);
+                pthread_mutex_unlock(&levelQueue[i]);
             }
         }
         else {
@@ -464,6 +468,7 @@ void *exitBoomgate(void *arg) {
 void generateBill(char* numPlate) {
     FILE *billingFile;
     bill = (double)(clock() - carStorage.car[findIndex(&carStorage,numPlate)].entranceTime)/ CLOCKS_PER_SEC * 50; // FOR NOW
+    moneyEarned += bill;
     //double bill = (carStorage.car[findIndex(&carStorage, plate)].exitTime - entryTime) * 0.05; // Need to add delay timings and entryTime or time_spent to car struct?
     // printf("B - numplate = %s\n", numPlate);
     printf("B - %s bill $%.2f\n", numPlate, bill);
@@ -626,13 +631,13 @@ void *statusDisplay(void *args) {
         // Grab temp sensor data
         for (int i =0; i < LEVELS; i++) {
             printf("-----------------------------Level %d information------------------------------\n", i+1);
-            printf("Temperature Sensor status %c\n", shm.data->level[i].fireAlarm);
+            printf("Temperature Sensor status: %s\n", shm.data->level[i].fireAlarm ? "No fire detected..." : "FIRE DETECTED!");
             // Display Number of vehicles  and  maximum  capacity  on  each  level
             printf("Currently %d cars on level %d, which has a maximum capacity of %d\n", levelCapacity[i], i+1, CAPACITY);
             // use levelCapacity or levelQueue[i].size? in printf
         }
         printf("------------------------------------------------------------\n");         
-        printf("Total billing recorded by the manager thus far: $%.2f\n");//, totalRevenue);
+        printf("Total billing recorded by the manager thus far: $%.2f\n", moneyEarned);//, totalRevenue);
         //printf("------------------------------------------------------------\n");
 
         usleep(50000);

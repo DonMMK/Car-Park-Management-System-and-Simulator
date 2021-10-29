@@ -17,7 +17,7 @@
 #include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
-#define CAR_LIMIT 99
+#define CAR_LIMIT 10
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
