@@ -244,3 +244,4 @@ void LoopTerm(int i)
 		exit(1);
 	}
 }
+
