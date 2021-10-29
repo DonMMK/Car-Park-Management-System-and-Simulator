@@ -134,12 +134,12 @@ void fixedTemp(double arr[][ARSIZE])
 }	
 
 // Logic for the fire alarm:
-int difference = 0;
-void RateofRise(int arr[][]){
-	if(difference >= 8){
-		ALARM = 1;
-	}	
-}
+//int difference = 0;
+//void RateofRise(int arr[][]){
+//	if(difference >= 8){
+//		ALARM = 1;
+//	}	
+//}
 
 // This function 
 // if the most recent temperature is 8°C (or more) hotter than the 30th most recent temperature,
