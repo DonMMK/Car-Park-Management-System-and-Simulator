@@ -59,11 +59,11 @@ int main()
     {
         //get temp data
         //index always between 0 - 29
-        rawL1[0][i % ARSIZE] = tempGen(LOWER,UPPER);
-        rawL2[0][i % ARSIZE] = tempGen(LOWER,UPPER);
-        rawL3[0][i % ARSIZE] = tempGen(LOWER,UPPER);
-        rawL4[0][i % ARSIZE] = tempGen(LOWER,UPPER);
-        rawL5[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        dataL1[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        dataL2[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        dataL3[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        dataL4[0][i % ARSIZE] = tempGen(LOWER,UPPER);
+        dataL5[0][i % ARSIZE] = tempGen(LOWER,UPPER);
             
         //check if possible to smooth data
         //need more than 5 entries
@@ -71,16 +71,16 @@ int main()
         {
             //get previous array date
             //last 4 elements for next set of data from smoothedData
-            double prevData[4] = {rawL1[1][26],rawL1[1][27], rawL1[1][28], rawL1[1][29]}; 
-            double L1 = smoothedData(rawL1, i % ARSIZE, prevData);
-            rawL1[1][i % 30] = L1;
+            double prevData[4] = {dataL1[1][26],dataL1[1][27], dataL1[1][28], dataL1[1][29]}; 
+            double L1 = smoothedData(dataL1, i % ARSIZE, prevData);
+            dataL1[1][i % 30] = L1;
 
             //test for fire
-            fixedTemp(rawL1);           
-            //fixedTemp(rawL2);
-            //fixedTemp(rawL3);
-            //fixedTemp(rawL4);
-            //fixedTemp(rawL5);
+            fixedTemp(dataL1);           
+            //fixedTemp(dataL2);
+            //fixedTemp(dataL3);
+            //fixedTemp(dataL4);
+            //fixedTemp(dataL5);
             SWITCH = 1;
             
         }
@@ -97,14 +97,14 @@ int main()
     //testing 
     for (int i = 0; i < ARSIZE; i++)
     {
-        printf("%d. %f\n",i + 1,rawL1[0][i]);
+        printf("%d. %f\n",i + 1,dataL1[0][i]);
     }
     
     //testing
     printf("--------------------\n");
     for (int i = 0; i < ARSIZE; i++)
     {
-        printf("%d. %f\n",i+1,rawL1[1][i]);
+        printf("%d. %f\n",i+1,dataL1[1][i]);
     }
     
     //open all gates
