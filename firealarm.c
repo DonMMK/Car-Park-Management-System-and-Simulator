@@ -1,10 +1,3 @@
-/******************************************************************************
-
-                            Online C Compiler.
-                Code, Compile, Run and Debug C program online.
-Write your code in this editor and press "Run" button to compile and execute it.
-
-*******************************************************************************/
 #include <semaphore.h> 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,21 +14,25 @@ Write your code in this editor and press "Run" button to compile and execute it.
 #include <unistd.h>
 #include <assert.h>
 
-#include "carQueue.c"
-#include "sharedMemoryOperations.h"
+//#include "carQueue.c"
+//#include "sharedMemoryOperations.h"
 
 #define SHARE_NAME "PARKING"
 #define LOWER 30
 #define UPPER 40
 #define LEVELS 5
-#define ARSIZE 8
+#define ARSIZE 30
+#define FIRETOLERANCE 8
+#define LOOPLIM 1e9
 
 //HELPER FUNCTIONS
-int16_t tempGen(int lower, int upper);
-double smoothedData(double arr[][ARSIZE], int i, double arg[4]);
+double tempGen(int lower, int upper);
+double smoothedData(double arr[][ARSIZE], int i);
 void fixedTemp(double arr[][ARSIZE]);
+void rateRise(double prevVal, double arr[][ARSIZE]);
+void loopLim(int i);
 
-//GLOBAL
+//GLOBALS
 int ALARM = 0;
 int SWITCH = 0;
 //shared_memory_t shm;
@@ -44,6 +41,7 @@ int SWITCH = 0;
 int main()
 {
     //shared_memory_t shm;
+    
     //declare data
     //1st row has raw data
     //2nd row has smoothed data
@@ -54,12 +52,12 @@ int main()
 	double dataL4[2][ARSIZE] = {0};
 	double dataL5[2][ARSIZE] = {0};
 
-    //finite loop for testing
+    double prevVal [LEVELS] = {-1};
     int i = 0;
-    while(i < 70)
+    while(i < LOOPLIM)
     {
         //get temp data
-        //index always between 0 - 29
+        //index always between 0 - (ARSIZE - 1)
         dataL1[0][i % ARSIZE] = tempGen(LOWER,UPPER);
         dataL2[0][i % ARSIZE] = tempGen(LOWER,UPPER);
         dataL3[0][i % ARSIZE] = tempGen(LOWER,UPPER);
@@ -67,120 +65,120 @@ int main()
         dataL5[0][i % ARSIZE] = tempGen(LOWER,UPPER);
             
         //check if possible to smooth data
-        //need more than 5 entries
-        if (i > 4 || SWITCH == 1)
+        //need 5 or more data entries
+        if (i > 3)
         {
-            //get previous array date
-            //last 4 elements for next set of data from smoothedData
-            double prevData[4] = {dataL1[1][26],dataL1[1][27], dataL1[1][28], dataL1[1][29]}; 
-            double L1 = smoothedData(dataL1, i % ARSIZE, prevData);
-            dataL1[1][i % 30] = L1;
+            //calculate and saved the smoothed value
+            double T1 = smoothedData(dataL1, i % ARSIZE);
+            double T2 = smoothedData(dataL2, i % ARSIZE);
+            double T3 = smoothedData(dataL3, i % ARSIZE);
+            double T4 = smoothedData(dataL4, i % ARSIZE);
+            double T5 = smoothedData(dataL5, i % ARSIZE);
 
-            //test for fire
+            //store into the second row of data arrays
+            dataL1[1][i % 30] = T1;
+            dataL2[1][i % 30] = T2;
+            dataL3[1][i % 30] = T3;
+            dataL4[1][i % 30] = T4;
+            dataL5[1][i % 30] = T5;
+
+            //fixed temp fire test
             fixedTemp(dataL1);           
-            //fixedTemp(dataL2);
-            //fixedTemp(dataL3);
-            //fixedTemp(dataL4);
-            //fixedTemp(dataL5);
-            SWITCH = 1;
+            fixedTemp(dataL2);
+            fixedTemp(dataL3);
+            fixedTemp(dataL4);
+            fixedTemp(dataL5);           
+        }
+        
+        //get previous values for rate of rise fire testing
+        //want to compare with full array so wait until that
+        if (i % ARSIZE == 0)
+        {
+            prevVal[0] = dataL1[1][ARSIZE - 1];
+            prevVal[1] = dataL2[1][ARSIZE - 1];
+            prevVal[2] = dataL3[1][ARSIZE - 1]; 
+            prevVal[3] = dataL4[1][ARSIZE - 1];
+            prevVal[4] = dataL5[1][ARSIZE - 1];
             
+            //rate of rise fire testing
+            rateRise(prevVal[0], dataL1);
+            rateRise(prevVal[1], dataL2);
+            rateRise(prevVal[2], dataL3);
+            rateRise(prevVal[3], dataL4);
+            rateRise(prevVal[4], dataL5);
         }
 
         i++;
+        loopLim(i);
         usleep(2000);
         
+        //alarm activated
         if (ALARM == 1)
         {
-            break;
-        }
-    }
-    
-    //testing 
-    for (int i = 0; i < ARSIZE; i++)
-    {
-        printf("%d. %f\n",i + 1,dataL1[0][i]);
-    }
-    
-    //testing
-    printf("--------------------\n");
-    for (int i = 0; i < ARSIZE; i++)
-    {
-        printf("%d. %f\n",i+1,dataL1[1][i]);
-    }
-    
-    //open all gates
-    for (int i = 0; i < LEVELS; i++)
-    {
-     /*   //open exit
-        pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
-        shm.data->exit[i].gate.status = 'O';
-        
-        //open entrance
-        pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
-        shm.data->entrance[i].gate.status = 'O';
-    */
-        printf("Entrance and Exit %d Open\n", i + 1);
-    }
-    
-    //print evacuate on all signs
-    char evacuate[] = {"EVACUATE"};
-    int size = sizeof(evacuate) / sizeof(evacuate[0]);
-    
-    while(1)
-    {
-        for (int i = 0; i < size; i++)
-        {
-            for(int j = 0; j < LEVELS; j++)
-            {
-                //shm.data->entrance[i].informationSign.display = evacuate[j]; 
+            //open all gates
+            for (int i = 0; i < LEVELS; i++)
+            {/*
+                //open exit
+                pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
+                shm.data->exit[i].gate.status = 'O';
+                
+                //open entrance
+                pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
+                shm.data->entrance[i].gate.status = 'O';
+                */
+                printf("Entrance and Exit %d Open\n", i + 1);
             }
-        usleep(20000);
+                
+            //print evacuate on all signs
+            char evacuate[] = {"EVACUATE"};
+            int size = sizeof(evacuate) / sizeof(evacuate[0]);
+            
+            //loop runs endlessly
+            //displaying evac message to all screens
+            while(1)
+            {
+                for (int i = 0; i < size; i++)
+                {
+                    for(int j = 0; j < LEVELS; j++)
+                    {
+                        //shm.data->entrance[i].informationSign.display = evacuate[j]; 
+                        printf("%c",evacuate[i]);
+                    }
+
+                usleep(20000);
+                }
+            }
         }
+        
     }
-    
     
     return 0;
 }
 
 //generates temp values randomly with upper and lower limits
-int16_t tempGen(int lower, int upper)
+double tempGen(int lower, int upper)
 {
-    int16_t num = (rand() %  (upper - lower + 1)) + lower;
+    double num = (rand() %  (upper - lower + 1)) + lower;
 	return num;    
 }
 
-double smoothedData(double arr[][ARSIZE], int index, double prevData[4])
+//uses raw data to create an average of the 5 most previous temperatures
+double smoothedData(double arr[][ARSIZE], int index)
 {
-
-    //see if index is less than 1 
-    //from loop around
-    int sum = 0;
-    if (index < 5)
+    double sum = 0;
+    for(int i = index; index - 5 < i; i--)
     {
-        //see if index is less than 0 from second time around
-        //can use prev data to find average for first 4 values
-        //sum values from new array
-        for (int i = 0; index < i ; i++)
+        if (i < 0)
         {
-            sum += arr[0][i];
+            int j = ARSIZE + i;
+            sum += arr[0][j];
         }
-        
-        //sum values from old array
-        for (int i = 30 - (5 - index); i < 30; i++)
-        {
-            sum += prevData[i];
-        }
-    }
-    else
-    {
-        //sum the previous 5 values of array
-        for (int i = index; index - 5 < i ; i--)
+        else
         {
             sum += arr[0][i];
         }
     }
     
-    //average the values
     double ret = sum / 5.00;
     return ret;
 }
@@ -190,13 +188,11 @@ double smoothedData(double arr[][ARSIZE], int index, double prevData[4])
 void fixedTemp(double arr[][ARSIZE])
 {
     assert(ALARM == 0); //make sure alarm is not active
-    
     //90% of 30 is 27, if see 27 readings over 58 degrees activate fire alarm
 	int cnt = 0;
 	for (int i = 0; i < ARSIZE; i++)
 	{
-	    //testing with raw data for now
-		if (arr[0][i] > 57)
+		if (arr[1][i] > 57)
 		{
 			cnt++;
 		}
@@ -210,36 +206,27 @@ void fixedTemp(double arr[][ARSIZE])
 	}	
 }	
 
+//takes last value of the previous array and compares with 
+//the next array, alarm is activated if the differnce is greater than
+// 8 degree
+void rateRise(double prevVal, double arr[][ARSIZE])
+{
+    for (int i = 0; i < ARSIZE; i++)
+    {
+        if ((arr[1][i] - prevVal) >= FIRETOLERANCE && prevVal != -1)
+        {
+            ALARM = 1;
+        }
+    }
+}
 
-// Logic for the fire alarm:
-//int difference = 0;
-//void RateofRise(int arr[][]){
-//	if(difference >= 8){
-//		ALARM = 1;
-//	}	
-//}
-
-// This is the rate of rise function that activates the alarm
-// if the most recent temperature is 8°C (or more) hotter than the 30th most recent temperature,
-// the temperature is considered to be growing at a fast enough rate that there must be a fire.
-//void RateofRise(double arr[][30],double rawL1[0][29]){
-//    int i = 0;
-//    for (i = 0; i < 30; i++){
-//       if ( abs ( arr[0][i] - arr[0][i+1]) >= 8){
-//            ALARM = 1;
-//        }
-//    }
-//
-//    if ( abs ( rawL1[0][i] - rawL1[0][i-1]) >= 8){
-//            ALARM = 1;
-//        }
-//
-//}
-
-// Five copies of the code for 5 levels 
-
-
-
-// I think 30th most recent temp means the temp in the 30th position of the previous array
-//so you would need the last value of the previous array to compare with the entire new array
-
+//checks if the upper bound of a loop has been reached
+//terminates program with error message if true
+void loopLim(int i)
+{
+	if (i >= LOOPLIM)
+	{
+		printf("ERROR: Loop Limit Upper Bound Exceeded, Program Will Close");
+		exit(1);
+	}
+}
