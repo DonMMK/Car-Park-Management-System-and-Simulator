@@ -1,4 +1,4 @@
-// -------------------------------------------- HEADa -------------------------------------------- //
+// -------------------------------------------- HEADER -------------------------------------------- //
 #include <semaphore.h> 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +18,7 @@
 
 #define SHARE_NAME "PARKING"
 #define CAR_LIMIT 10
-#define FIRE 1
+#define FIRE 2 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
@@ -60,14 +60,10 @@ int main()
     initialiseSharedMemory(shm);
 
     // Read the number plates 
-    readFile("plates.txt");
-
-    // BEGINING SIMULATION
-    printf("S - STARTING SIMULATION\n");    
+    readFile("plates.txt");   
 
     // Create threads 
     int i;
-    
     pthread_create(&carSpawner, NULL, &spawnCar, NULL);
     for (i = 0; i < ENTRANCES; i++){
         int* p = malloc(sizeof(int));
@@ -97,22 +93,23 @@ int main()
 void *spawnCar(void *args) {
     char* plate;  
     int waitTime;
+
+    // Initialise entrance queues
     for (int i = 0; i < ENTRANCES; i++){
         plateInit(&entranceQueue[i]);
     }
     
     for (int i = 0;i < CAR_LIMIT;i++){
         // Generate numberplate (from list/random)
-        plate = generatePlate(80);
+        plate = generatePlate(85);
         selector++;
-        // printf("S - Car has plate number: %s\n", plate); 
 
         // Generate car every 1 - 100 milliseconds
         waitTime = generateRandom(1,100) * 1000;
         usleep(waitTime);
 
-        int entranceCar = generateRandom(0,4);
-        // entranceCar = 0;
+        // Generate a random entrance 
+        int entranceCar = generateRandom(0,ENTRANCES - 1);
 
         printf("The plate %s is arriving at entrance %d\n",plate,entranceCar + 1);
         // SPAWN CAR THREAD 
@@ -120,6 +117,7 @@ void *spawnCar(void *args) {
         addPlate(&entranceQueue[entranceCar], plate);
         pthread_mutex_unlock(&entranceQueueMutex[entranceCar]);
     }
+    return 0;
 } 
 
 void *entranceSimulate(void *arg) {
@@ -188,16 +186,14 @@ void printFile(){
     printf("\n");
 }
 
-// generates a random numberplate 
+// Generates a plate (Random/Allowed)
 char* generatePlate(int probability){
     int random = generateRandom(0, 100);
     if (random <= probability){
-        // printf("SimGP - It is an allowed plate (%s)\n", allowedPlates[selector]);
         return allowedPlates[selector];
     }
     else{
         char *p = randomPlate();
-        // printf("SimGP - It is a random plate (%s)\n", p);
         return p;
     }
 }
@@ -225,6 +221,7 @@ char* randomPlate(){
     return finstr;
 }
 
+// Simulates temperatures
 void *tempSensorSimulate(void *arg) {
     int i = *(int*) arg;
     int16_t temperature;

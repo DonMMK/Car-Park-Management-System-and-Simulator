@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_CAPACITY 1000
+#define MAX_CAPACITY 100
 #define STORAGE_CAPACITY 7
 
 typedef struct carQueue {
@@ -18,6 +18,7 @@ void popPlate(carQueue_t* carQueue);
 void popRandom(carQueue_t* carQueue, int index); 
 void printPlate(carQueue_t* carQueue);
 
+// Initialise the queue
 void plateInit(carQueue_t *carQueue){
     carQueue->size = 0;
     for (int i = 0; i < MAX_CAPACITY; i++){
@@ -25,12 +26,14 @@ void plateInit(carQueue_t *carQueue){
     }
 }
 
+// Append plate to end of queue
 void addPlate(carQueue_t* carQueue, char * plate){
     int old_size = carQueue->size;
     strcpy(carQueue->plateQueue[old_size], plate);
     carQueue->size = old_size + 1;
 }
 
+// Remove first plate from queue
 void popPlate(carQueue_t* carQueue){
     int old_size = carQueue->size;
     char old_data[MAX_CAPACITY][STORAGE_CAPACITY];
@@ -43,6 +46,7 @@ void popPlate(carQueue_t* carQueue){
     carQueue->size = old_size - 1;
 }
 
+// Pop a plate at an index
 void popRandom(carQueue_t* carQueue, int index){
     int old_size = carQueue->size;
     char old_data[MAX_CAPACITY][STORAGE_CAPACITY];
@@ -59,6 +63,7 @@ void popRandom(carQueue_t* carQueue, int index){
     carQueue->size = old_size - 1;
 }
 
+// Print plates
 void printPlate(carQueue_t* carQueue){
     printf("NUMBER OF PLATES ARE: %d\n", carQueue->size); 
     for (int i = 0; i < carQueue->size; i++){

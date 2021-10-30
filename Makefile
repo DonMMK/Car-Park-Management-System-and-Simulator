@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -pedantic -pthread -lrt # Show all reasonable warnings
 LDFLAGS =
 
-all: Simulator Manager
+all: Simulator Manager FireAlarm
 
 Simulator: Simulator.c
 	gcc -o Simulator Simulator.c $(CFLAGS)
