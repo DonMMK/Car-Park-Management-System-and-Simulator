@@ -19,6 +19,7 @@ Write your code in this editor and press "Run" button to compile and execute it.
 #include <ctype.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "carQueue.c"
 #include "sharedMemoryOperations.h"
@@ -150,6 +151,7 @@ int16_t tempGen(int lower, int upper)
 
 double smoothedData(double arr[][ARSIZE], int index, double prevData[4])
 {
+
     //see if index is less than 1 
     //from loop around
     int sum = 0;
@@ -187,6 +189,8 @@ double smoothedData(double arr[][ARSIZE], int index, double prevData[4])
 //if true actives firealarm
 void fixedTemp(double arr[][ARSIZE])
 {
+    assert(ALARM == 0); //make sure alarm is not active
+    
     //90% of 30 is 27, if see 27 readings over 58 degrees activate fire alarm
 	int cnt = 0;
 	for (int i = 0; i < ARSIZE; i++)
@@ -238,3 +242,4 @@ void fixedTemp(double arr[][ARSIZE])
 
 // I think 30th most recent temp means the temp in the 30th position of the previous array
 //so you would need the last value of the previous array to compare with the entire new array
+
