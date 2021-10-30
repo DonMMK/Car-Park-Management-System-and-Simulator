@@ -23,7 +23,7 @@
 #define LEVELS 5
 #define ARSIZE 30
 #define FIRETOLERANCE 8
-#define LOOPLIM 1e9
+#define LOOPLIM 1.7976931348623157e308
 
 //HELPER FUNCTIONS
 double tempGen(int lower, int upper);
@@ -34,7 +34,6 @@ void loopLim(int i);
 
 //GLOBALS
 int ALARM = 0;
-int SWITCH = 0;
 //shared_memory_t shm;
 
 //MAIN
@@ -167,6 +166,7 @@ double tempGen(int lower, int upper)
 //uses raw data to create an average of the 5 most previous temperatures
 double smoothedData(double arr[][ARSIZE], int index)
 {
+    
     double sum = 0;
     for(int i = index; index - 5 < i; i--)
     {
