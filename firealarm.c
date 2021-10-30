@@ -159,6 +159,8 @@ int main()
 double tempGen(int lower, int upper)
 {
     double num = (rand() %  (upper - lower + 1)) + lower;
+    assert(num >= lower && num <= upper);
+    //assert(num != NULL);
 	return num;    
 }
 
@@ -211,6 +213,8 @@ void fixedTemp(double arr[][ARSIZE])
 // 8 degree
 void rateRise(double prevVal, double arr[][ARSIZE])
 {
+    assert(ALARM == 0); //make sure alarm is not active
+    assert(prevVal != -1); // add another assert to make sure prevVal is not null
     for (int i = 0; i < ARSIZE; i++)
     {
         if ((arr[1][i] - prevVal) >= FIRETOLERANCE && prevVal != -1)
