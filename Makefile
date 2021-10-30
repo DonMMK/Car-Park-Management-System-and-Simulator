@@ -10,8 +10,8 @@ Simulator: Simulator.c
 Manager: Manager.c
 	gcc -o Manager Manager.c $(CFLAGS)
 
-FireAlarm: firealarm.c
-	gcc -o FireAlarm firealarm.c $(CFLAGS)
+FireAlarm: FireAlarm.c
+	gcc -o FireAlarm FireAlarm.c $(CFLAGS)
 
 clean:
 	rm -f Manager Simulator FireAlarm *.o

@@ -11,7 +11,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "sharedMemoryOperations.h"
+#include "sharedMemoryOperations.c"
 #include "carQueue.c"
 #include "carStorage.c"
 
@@ -31,9 +31,10 @@ void *exitBoomgate(void *arg);
 void *statusDisplay(void *args);
 
 double generateRandom(int lower, int upper);
-double createThreads();
+double createThreads(void);
 void generateBill(char*);
 void readFile(char *filename);
+void evactuationSequence(void);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 shared_memory_t shm;
@@ -53,6 +54,7 @@ char exitDisplay[EXITS];
 char entrDisplay[ENTRANCES];
 double bill;
 double moneyEarned;
+int fire;
 
 // --------------------------------------------- MAIN --------------------------------------------- // 
 int main()
@@ -65,6 +67,7 @@ int main()
         levelCapacity[i] = 0;
     }
     moneyEarned = 0;
+    fire = 0;
 
     // Read the number plates 
     readFile("plates.txt");
@@ -78,7 +81,7 @@ int main()
 
 void *entranceLPR(void *arg){
     int i = *(int*) arg;
-    for (;;){ 
+    while (!fire){ 
         // Empty LPR
         pthread_mutex_lock(&shm.data->entrance[i].LPRSensor.LPRmutex);
         strcpy(shm.data->entrance[i].LPRSensor.plate, "000000");
@@ -182,7 +185,7 @@ void *entranceLPR(void *arg){
 
 void *levelLPR(void *arg){
     int i = *(int*) arg;
-    for (;;){ 
+    while (!fire){ 
         while(levelQueue[i].size <= 0);
         // Empty LPR
         pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
@@ -251,7 +254,7 @@ void *levelLPR(void *arg){
 
 void *levelController(void *arg){
     int i = *(int*) arg;
-    for (;;){
+    while (!fire){ 
         // Wait for manager LPR thread to signal that LPR is free
         pthread_mutex_lock(&shm.data->level[i].LPRSensor.LPRmutex);
         while (strcmp(shm.data->level[i].LPRSensor.plate, "000000")){ 
@@ -273,13 +276,17 @@ void *levelController(void *arg){
 
         // Signal manager thread with new plate
         pthread_cond_signal(&shm.data->level[i].LPRSensor.LPRcond); 
+
+        if (shm.data->level[i].fireAlarm == '1'){
+            fire = 1;
+        }
     }
 }
 
 
 void *exitLPR(void *arg){
     int i = *(int*) arg;
-    for (;;){ 
+    while (!fire){ 
         while(exitQueue[i].size <= 0);
         // Empty LPR
         pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
@@ -325,13 +332,13 @@ void *exitLPR(void *arg){
         removeCar(&carStorage, shm.data->exit[i].LPRSensor.plate);
         pthread_mutex_unlock(&shm.data->exit[i].LPRSensor.LPRmutex);
         pthread_mutex_unlock(&carStorageMutex);
-
     }
+    
 }
 
 void *exitController(void *arg){
     int i = *(int*) arg;
-    for (;;){
+    while (!fire){ 
         // printf("I AM IN exit contorller part 1\n");
         // Wait for exit LPR thread to signal that LPR is free
         pthread_mutex_lock(&shm.data->exit[i].LPRSensor.LPRmutex);
@@ -364,7 +371,7 @@ void *exitController(void *arg){
 
 void *checkTimes(void *arg){
     int i = *(int*) arg;
-    for(;;){
+    while (!fire){ 
         while (carStorage.size <= 0);
         pthread_mutex_lock(&carStorageMutex);
         for (i = 0; i < carStorage.size; i++){
@@ -384,7 +391,7 @@ void *checkTimes(void *arg){
 
 void *entranceBoomgate(void *arg) {
     int i = *(int*) arg;
-    for (;;){
+    while (!fire){ 
         pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
         while(shm.data->entrance[i].gate.status == 'C') {
             pthread_cond_wait(&shm.data->entrance[i].gate.gatecond, &shm.data->entrance[i].gate.gatemutex);
@@ -423,11 +430,37 @@ void *entranceBoomgate(void *arg) {
         pthread_mutex_unlock(&shm.data->entrance[i].gate.gatemutex);
         // printf("NG - Gate status set to %s\n", &shm.data->entrance[0].gate.status);
     }
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
+        shm.data->entrance[i].gate.status = 'R';
+        pthread_mutex_unlock(&shm.data->entrance[i].gate.gatemutex);
+        usleep(10000);
+        pthread_mutex_lock(&shm.data->entrance[i].gate.gatemutex);
+        shm.data->entrance[i].gate.status = 'O';
+        pthread_mutex_unlock(&shm.data->entrance[i].gate.gatemutex);
+    }
+    for (int i = 0; i < EXITS; i++){
+        pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
+        shm.data->exit[i].gate.status = 'R';
+        pthread_mutex_unlock(&shm.data->exit[i].gate.gatemutex);
+        usleep(10000);
+        pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
+        shm.data->exit[i].gate.status = 'O';
+        pthread_mutex_unlock(&shm.data->exit[i].gate.gatemutex);
+    }
+    for (int i = 0; i < LEVELS; i++){
+        pthread_mutex_lock(&levelCapacityMutex);
+        levelCapacity[i] = 0;
+        pthread_mutex_unlock(&levelCapacityMutex);
+    }
+    while (fire){
+        evactuationSequence();
+    }
 }
 
 void *exitBoomgate(void *arg) {
     int i = *(int*) arg;
-    for (;;){
+    while (!fire){ 
         // Waiting for status of boom gate to change 
         pthread_mutex_lock(&shm.data->exit[i].gate.gatemutex);
         while(shm.data->exit[i].gate.status == 'C') {
@@ -462,7 +495,7 @@ void *exitBoomgate(void *arg) {
         shm.data->exit[i].gate.status = 'C';
         pthread_mutex_unlock(&shm.data->exit[i].gate.gatemutex);
         // printf("XG - Gate status set to %s\n", &shm.data->exit[0].gate.status);
-    }
+    }    
 }
 
 void generateBill(char* numPlate) {
@@ -499,7 +532,7 @@ double generateRandom(int lower, int upper)
     return num;
 }
 
-double createThreads(){
+double createThreads(void){
     pthread_mutexattr_t attr_m;
     pthread_mutexattr_init(&attr_m);
     pthread_mutexattr_setpshared(&attr_m, PTHREAD_PROCESS_SHARED);
@@ -631,7 +664,7 @@ void *statusDisplay(void *args) {
         // Grab temp sensor data
         for (int i =0; i < LEVELS; i++) {
             printf("-----------------------------Level %d information------------------------------\n", i+1);
-            printf("Temperature Sensor status: %s\n", shm.data->level[i].fireAlarm ? "No fire detected..." : "FIRE DETECTED!");
+            printf("Temperature Sensor status: %s\n", (shm.data->level[i].fireAlarm == '0') ? "No fire detected..." : "FIRE DETECTED!");
             // Display Number of vehicles  and  maximum  capacity  on  each  level
             printf("Currently %d cars on level %d, which has a maximum capacity of %d\n", levelCapacity[i], i+1, CAPACITY);
             // use levelCapacity or levelQueue[i].size? in printf
@@ -643,4 +676,55 @@ void *statusDisplay(void *args) {
         usleep(50000);
         system("clear");
     }
+}
+
+void evactuationSequence(void){
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'E';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'V';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'A';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'C';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'U';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'A';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'T';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
+    for (int i = 0; i < ENTRANCES; i++){
+        pthread_mutex_lock(&shm.data->entrance[i].informationSign.ISmutex);
+        shm.data->entrance[i].informationSign.display = 'E';
+        pthread_mutex_unlock(&shm.data->entrance[i].informationSign.ISmutex);
+    }
+    usleep(20000);
 }

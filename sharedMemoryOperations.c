@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <string.h>
 
 #include "sharedMemory.c"
 
@@ -231,4 +233,5 @@ void initialiseSharedMemory(shared_memory_t shm){
         // Initiliase number plate to be xxxxxx
         strcpy(shm.data->level[i].LPRSensor.plate, "xxxxxx");
     }
+
 }

@@ -53,8 +53,8 @@ typedef struct exit {
  */
 typedef struct level {
     LPRSensor_t LPRSensor;
-    int16_t tempSensor; 
-    char fireAlarm;
+    volatile int16_t tempSensor; 
+    volatile char fireAlarm;
 } level_t;
 
 

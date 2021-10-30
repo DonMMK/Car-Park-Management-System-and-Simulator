@@ -14,10 +14,11 @@
 #include <stdint.h>
 
 #include "carQueue.c"
-#include "sharedMemoryOperations.h"
+#include "sharedMemoryOperations.c"
 
 #define SHARE_NAME "PARKING"
 #define CAR_LIMIT 10
+#define FIRE 1
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
@@ -27,6 +28,7 @@ char *randomPlate();
 void initialiseSharedMemory(shared_memory_t shm);
 void *spawnCar(void *args);
 void *entranceSimulate(void *arg);
+void *tempSensorSimulate(void *arg);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 char allowedPlates[100][7];
@@ -41,7 +43,7 @@ int main()
     selector = 0;
     pthread_t carSpawner;
     pthread_t entranceThread[ENTRANCES];
-
+    pthread_t tempSensorSimulate_thread[LEVELS];
     
     for (int i = 0; i < ENTRANCES; i++){
         pthread_mutex_init(&entranceQueueMutex[ENTRANCES], NULL);
@@ -65,17 +67,28 @@ int main()
 
     // Create threads 
     int i;
+    
     pthread_create(&carSpawner, NULL, &spawnCar, NULL);
     for (i = 0; i < ENTRANCES; i++){
         int* p = malloc(sizeof(int));
         *p = i;
         pthread_create(&entranceThread[i], NULL, &entranceSimulate, p);
     }
+
+    for (i = 0; i < LEVELS; i++){
+        int* z = malloc(sizeof(int));
+        *z = i;
+        pthread_create(&tempSensorSimulate_thread[i], NULL, &tempSensorSimulate, z);
+    }
     
     // Join threads 
     pthread_join(carSpawner,NULL);
+    
     for (i = 0; i < ENTRANCES; i++){
         pthread_join(entranceThread[i], NULL);
+    }
+    for (i = 0; i < LEVELS; i++){
+        pthread_join(tempSensorSimulate_thread[i],NULL);
     }
 }
 
@@ -210,4 +223,35 @@ char* randomPlate(){
     finstr[6] = '\0';
 
     return finstr;
+}
+
+void *tempSensorSimulate(void *arg) {
+    int i = *(int*) arg;
+    int16_t temperature;
+    int16_t currentTemp;
+
+    for (;;) {
+        usleep(2000);
+        if (FIRE == 1) { // (Fixed temp fire detection data)
+            // Generate temperatures to trigger fire alarm via Temps > 58 degrees
+            temperature = (int16_t) generateRandom(58, 65);
+            shm.data->level[i].tempSensor = temperature;
+        }
+        else if (FIRE == 2) { // (Rate-of-rise fire detection data)
+            // Generate temperatures to trigger fire alarm via Rate-of-rise (Most recent temp >= 8 degrees hotter than 30th most recent)
+            if (shm.data->level[i].tempSensor > 58){
+                currentTemp = 24;
+            }
+            else {
+                currentTemp = shm.data->level[i].tempSensor;
+            }
+            temperature = generateRandom(currentTemp, currentTemp + 2);
+            shm.data->level[i].tempSensor = temperature;
+        }
+        else {
+            // Generate normal temperatures to avoid setting off fire alarm
+            temperature = (int16_t) 24;
+            shm.data->level[i].tempSensor = temperature;
+        }    
+    }
 }
