@@ -17,8 +17,10 @@
 #include "sharedMemoryOperations.c"
 
 #define SHARE_NAME "PARKING"
-#define CAR_LIMIT 10
-#define FIRE 2 
+#define CAR_LIMIT 8
+#define FIRE 0
+#define RANDOM_CHANCE 80
+
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
 int generateRandom(int lower, int upper);
 void readFile(char *filename);
@@ -101,7 +103,7 @@ void *spawnCar(void *args) {
     
     for (int i = 0;i < CAR_LIMIT;i++){
         // Generate numberplate (from list/random)
-        plate = generatePlate(85);
+        plate = generatePlate(RANDOM_CHANCE);
         selector++;
 
         // Generate car every 1 - 100 milliseconds

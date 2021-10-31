@@ -1,11 +1,11 @@
+// ------------------------------------------- HEADER --------------------------------------------- // 
 #include <assert.h>
 #include "sharedMemoryOperations.c"
 
 #define SHARE_NAME "PARKING"
-#define LEVELS 5
 #define FIRETOLERANCE 8
 #define ARSIZE 30
-#define LOOPLIM 1.7976931348623157e308
+#define LOOPLIM 1e9
 
 
 // ------------------------------------ FUNCTION DECLERATIONS ------------------------------------- // 
@@ -139,7 +139,7 @@ void arraySort(int16_t array[ARSIZE] , int n)
 int16_t findMedian(int16_t array[ARSIZE] , int n)
 {
     int16_t median = 0;
-    assert(n != NULL);
+    
     // if number of elements are even
     if(n%2 == 0)
         median = (array[(n-1)/2] + array[n/2])/2.0;
@@ -154,7 +154,6 @@ int16_t findMedian(int16_t array[ARSIZE] , int n)
 //terminates program with error message if true
 void loopLim(int i)
 {
-    assert(i!= NULL);
 	if (i >= LOOPLIM)
 	{
 		printf("ERROR: Loop Limit Upper Bound Exceeded, Program Will Close");

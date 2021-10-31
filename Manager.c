@@ -35,6 +35,7 @@ void generateBill(char*);
 void readFile(char *filename);
 void evactuationSequence(void);
 void fireSignal(void);
+void checkFire(void);
 
 // --------------------------------------- PUBLIC VARIABLES --------------------------------------- // 
 shared_memory_t shm;
@@ -283,11 +284,6 @@ void *levelController(void *arg){
 
         // Signal manager thread with new plate
         pthread_cond_signal(&shm.data->level[i].LPRSensor.LPRcond); 
-
-        // Check for fire!
-        if (shm.data->level[i].fireAlarm == '1'){
-            fire = 1;
-        }
     }
     return 0;
 }
@@ -391,7 +387,11 @@ void *checkTimes(void *arg){
                 pthread_mutex_unlock(&levelQueueMutex[carStorage.car[i].level]);
             }
         }
+        // Check to see if fire on any level
+        checkFire();
     }
+    // FIRE -> set all gates to open
+    fireSignal();
     return 0;
 }
 
@@ -730,5 +730,14 @@ void fireSignal(void){
     // FIRE -> show evacuation sequence
     while (fire){
         evactuationSequence();
+    }
+}
+
+void checkFire(void){
+    // Check for fire!
+    for (int i = 0; i < LEVELS; i++){
+        if (shm.data->level[i].fireAlarm == '1'){
+            fire = 1;
+        }
     }
 }
