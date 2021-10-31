@@ -139,7 +139,7 @@ void arraySort(int16_t array[ARSIZE] , int n)
 int16_t findMedian(int16_t array[ARSIZE] , int n)
 {
     int16_t median = 0;
-    
+    assert(n != NULL);
     // if number of elements are even
     if(n%2 == 0)
         median = (array[(n-1)/2] + array[n/2])/2.0;
@@ -154,6 +154,7 @@ int16_t findMedian(int16_t array[ARSIZE] , int n)
 //terminates program with error message if true
 void loopLim(int i)
 {
+    assert(i!= NULL);
 	if (i >= LOOPLIM)
 	{
 		printf("ERROR: Loop Limit Upper Bound Exceeded, Program Will Close");
