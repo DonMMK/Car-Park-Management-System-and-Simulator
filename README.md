@@ -15,7 +15,7 @@ simulation of temperatures that initiate the required scenarios:
 - Within the Simulator.c, there is a public variable *CAR_LIMIT* which can be set to allow a certain number of cars into the carpark. The final define is *RANDOM_CHANCE* and will establish the probablity of the plate appearing from the list of allowed plates. 
 ---
 ### Carpark Initiation:
-- Within the SharedMemory.c, there are definitions for *ENTRANCES*, *EXITS* and *LEVELS* to allow a flexible carpark design. Additionally, in *CarQueue.c* there is a definition for the capacity of each of these levels.
+- Within the SharedMemory.c, there are definitions for *ENTRANCES*, *EXITS* and *LEVELS* to allow a flexible carpark design. Additionally, in *CarQueue.c* there is a definition for the capacity of each of these levels
 ---
 ## Notes about the Project
 - This project is open source and will allow anyone to be able to open and contribute to it.
